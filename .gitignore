@@ -1,0 +1,48 @@
+# ROOT GITIGNORE - Artigo Carol (IEEE TSE)
+
+# Virtual Environments (todas as pastas .venv no projeto)
+**/.venv/
+**/env/
+**/venv/
+
+# LIARA Benchmark - Repositórios pesados (SWE-bench)
+**/openclaw_swe_benchmark/local_execution/repos/
+
+# Dados Temporários e Logs do LIARA
+**/openclaw_swe_benchmark/local_execution/data/final_benchmark_*
+**/openclaw_swe_benchmark/local_execution/data/agent_dialogue_*
+**/openclaw_swe_benchmark/local_execution/data/scientific_run_*
+**/openclaw_swe_benchmark/local_execution/data/research_results_*
+**/openclaw_swe_benchmark/local_execution/data/scientific_v22_*
+**/openclaw_swe_benchmark/local_execution/*.patch
+
+# Python Cache
+**/__pycache__/
+**/*.py[cod]
+
+# LaTeX JUNK (Auxiliares de compilação)
+*.aux
+*.log
+*.out
+*.toc
+*.pdfsync
+*.synctex.gz
+*.blg
+*.bbl
+Computer_Society_LaTeX_template/*.aux
+Computer_Society_LaTeX_template/*.log
+
+# IDE e OS
+.vscode/
+.idea/
+.DS_Store
+
+# MANTER ESSENCIAIS
+!**/openclaw_swe_benchmark/local_execution/data/swebench_sample_5.json
+!artigos_referencia/*.pdf
+!Computer_Society_LaTeX_template/*.tex
+
+/artefatos
+/artigos_referencia
+/Computer_Society_LaTeX_template
+/openclaw_swe_benchmark/dgx_execution
