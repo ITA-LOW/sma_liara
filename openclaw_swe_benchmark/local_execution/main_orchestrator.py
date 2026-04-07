@@ -1,0 +1,143 @@
+import json
+import urllib.request
+import urllib.error
+import os
+import subprocess
+import re
+from datetime import datetime
+
+# Import de Skills Reais do LIARA
+try:
+    from skills.file_editor.real_editor import read_file, apply_edit, write_file
+    from skills.bash_executor.docker_qa import run_in_docker
+except ImportError:
+    print("[AVISO] Skills reais não encontradas.")
+
+# Configuração Base
+OLLAMA_URL = "http://localhost:11434/api/chat"
+MODEL = "llama3" 
+REPOS_DIR = "repos"
+LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
+
+def log_dialogue(role, content):
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"\n{'='*50}\n[{role}] {datetime.now()}\n{content}\n")
+
+def prompt_agent(role_prompt, user_content):
+    """Interação com o Ollama local."""
+    data = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": role_prompt},
+            {"role": "user", "content": user_content}
+        ],
+        "stream": False
+    }
+    req = urllib.request.Request(OLLAMA_URL, json.dumps(data).encode('utf-8'), {'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req) as response:
+            result = json.loads(response.read().decode())
+            content = result['message']['content']
+            log_dialogue("SYSTEM: " + role_prompt[:50] + "...", user_content[:200] + "...")
+            log_dialogue("AGENT RESPONSE", content)
+            return content
+    except Exception as e:
+        return f"ERROR: {e}"
+
+def clone_and_checkout(repo_full_name, commit_id):
+    """Clona o repositório e faz checkout no commit da issue."""
+    repo_name = repo_full_name.split("/")[-1]
+    local_path = os.path.abspath(os.path.join(REPOS_DIR, repo_name))
+    if not os.path.exists(REPOS_DIR): os.makedirs(REPOS_DIR)
+    if not os.path.exists(local_path):
+        subprocess.run(["git", "clone", f"https://github.com/{repo_full_name}.git", local_path], check=True)
+    subprocess.run(["git", "-C", local_path, "reset", "--hard", "HEAD"], check=True)
+    try:
+        subprocess.run(["git", "-C", local_path, "clean", "-fdx"], check=True)
+    except:
+        uid, gid = os.getuid(), os.getgid()
+        subprocess.run(["docker", "run", "--rm", "-v", f"{local_path}:/app", "alpine", "chown", "-R", f"{uid}:{gid}", "/app"], check=True)
+        subprocess.run(["git", "-C", local_path, "clean", "-fdx"], check=True)
+    subprocess.run(["git", "-C", local_path, "checkout", commit_id], check=True)
+    return local_path
+
+def run_swe_benchmark_loop(issue_data):
+    """Loop de Reparação Científica LIARA v3.2.1 (Path Fixer)."""
+    instance_id = issue_data['instance_id']
+    repo_name = issue_data['repo']
+    base_commit = issue_data['base_commit']
+    test_script = issue_data['test'] 
+    test_patch = issue_data['test_patch'] 
+    
+    print(f"\n[LIARA] Iniciando Reparo Científico: {instance_id}")
+    
+    try:
+        repo_path = clone_and_checkout(repo_name, base_commit)
+        patch_path = os.path.join(REPOS_DIR, f"{instance_id}.patch")
+        with open(patch_path, "w") as f: f.write(test_patch)
+        subprocess.run(["git", "-C", repo_path, "apply", os.path.abspath(patch_path)], check=True)
+        
+        container_name = f"liara-{instance_id.replace('__', '-').replace('.', '-')}"
+        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+        subprocess.run(["docker", "run", "-d", "--name", container_name, "-v", f"{repo_path}:/app", "-w", "/app", "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
+        run_in_docker(container_name, "pip install -e .")
+    except Exception as e:
+        print(f"[ERRO] {e}"); return False
+    
+    pre_results = run_in_docker(container_name, test_script)
+    print(f"[REPRO] {'BUG DETECTADO (OK)' if any(k in pre_results.lower() for k in ['fail', 'error', 'traceback']) else 'PASSOU (INESPERADO)'}")
+    
+    file_list = run_in_docker(container_name, "find . -maxdepth 2 -not -path '*/.*'")
+    architect_plan = prompt_agent("You are Sully. Design a fix for this bug. Identify ONE file to edit.", f"Bug: {issue_data['problem_statement']}\n\nTrace:\n{pre_results}\n\nFiles:\n{file_list}")
+    
+    # Extração robusta do caminho (limpa de /app/)
+    file_match = re.search(r"([a-zA-Z0-9_\-\.\/]+\.py)", architect_plan)
+    if not file_match:
+        print("[AVISO] Sully não identificou o arquivo."); return False
+    
+    target_rel = file_match.group(1)
+    if target_rel.startswith("/app/"): target_rel = target_rel[5:] # Remove /app/
+    
+    target_abs = os.path.join(repo_path, target_rel)
+    print(f"[CODEY] Realizando cirurgia em {target_rel}...")
+    current_content = read_file(target_abs)
+    
+    if current_content.startswith("ERROR:"):
+        print(f"[CODEY] {current_content}"); return False
+        
+    codey_prompt = "You are Codey. Identify a block of code to search and provide its replacement. Format:\nSEARCH:\n[existing code]\nREPLACE:\n[new code]"
+    codey_response = prompt_agent(codey_prompt, f"File Content ({target_rel}):\n{current_content}\n\nPlan:\n{architect_plan}")
+    
+    try:
+        search_block = re.search(r"SEARCH:\n(.*?)\nREPLACE:", codey_response, re.DOTALL)
+        replace_block = re.search(r"REPLACE:\n(.*?)$", codey_response, re.DOTALL)
+        
+        if search_block and replace_block:
+            old_str = search_block.group(1).strip().replace("```python", "").replace("```", "").strip()
+            new_str = replace_block.group(1).strip().replace("```python", "").replace("```", "").strip()
+            result = apply_edit(target_abs, old_str, new_str)
+            print(f"[CODEY] {result}")
+        else:
+            print("[AVISO] Codey falhou no formato SEARCH/REPLACE.")
+    except Exception as e:
+        print(f"[CODEY] Erro: {e}")
+    
+    post_results = run_in_docker(container_name, test_script)
+    qa_decision = prompt_agent("Are you Vera? Reply SUCCESS only if all tests passed.", f"Final Logs:\n{post_results}")
+    
+    os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+    
+    if "SUCCESS" in qa_decision.upper():
+        print(f"-> [ORDEM] {instance_id} RESOLVIDA!"); return True
+    else:
+        print(f"-> [ORDEM] {instance_id} REJEITADA."); return False
+
+if __name__ == "__main__":
+    with open("data/swebench_sample_5.json", "r") as f: issues = json.load(f)
+    print(f"=== LIARA: SCIENTIFIC REPAIR v3.2.1 (Deep Path Fix) ===")
+    res = {"sucesso": 0, "falha": 0}
+    for issue in issues:
+        if run_swe_benchmark_loop(issue): res["sucesso"] += 1
+        else: res["falha"] += 1
+        print("-" * 60)
+    print(f"\n[FIM] Logs em: {LOG_FILE}")
