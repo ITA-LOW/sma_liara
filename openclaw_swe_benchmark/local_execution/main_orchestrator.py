@@ -15,8 +15,9 @@ except ImportError:
 
 # Configuração Base
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "llama3.1" 
+MODEL = os.environ.get("LIARA_MODEL", "llama3.1")
 REPOS_DIR = "repos"
+os.makedirs("data", exist_ok=True)
 LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 
 def log_dialogue(role, content):
@@ -90,13 +91,23 @@ def run_swe_benchmark_loop(issue_data):
     file_list = run_in_docker(container_name, "find . -maxdepth 2 -not -path '*/.*'")
     architect_plan = prompt_agent("You are Sully. Design a fix for this bug. Identify ONE file to edit.", f"Bug: {issue_data['problem_statement']}\n\nTrace:\n{pre_results}\n\nFiles:\n{file_list}")
     
-    # Extração robusta do caminho (limpa de /app/)
-    file_match = re.search(r"([a-zA-Z0-9_\-\.\/]+\.py)", architect_plan)
+    # Extração robusta do caminho - múltiplos padrões
+    file_match = (
+        re.search(r"`([^`]*\.py)`", architect_plan) or
+        re.search(r"\*\*([^*]*\.py)\*\*", architect_plan) or
+        re.search(r"'([^']*\.py)'", architect_plan) or
+        re.search(r"\b([a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-\.]+)+\.py)\b", architect_plan) or
+        re.search(r"([a-zA-Z0-9_\-\.\/]+\.py)", architect_plan)
+    )
     if not file_match:
-        print("[AVISO] Sully não identificou o arquivo."); return False
+        print("[AVISO] Sully não identificou o arquivo. Resposta:")
+        print(architect_plan[:500])
+        return False
     
     target_rel = file_match.group(1)
-    if target_rel.startswith("/app/"): target_rel = target_rel[5:] # Remove /app/
+    for prefix in ["/app/", "./"]:
+        if target_rel.startswith(prefix):
+            target_rel = target_rel[len(prefix):]
     
     target_abs = os.path.join(repo_path, target_rel)
     print(f"[CODEY] Realizando cirurgia em {target_rel}...")
@@ -105,8 +116,21 @@ def run_swe_benchmark_loop(issue_data):
     if current_content.startswith("ERROR:"):
         print(f"[CODEY] {current_content}"); return False
         
-    codey_prompt = "You are Codey. Identify a block of code to search and provide its replacement. Format:\nSEARCH:\n[existing code]\nREPLACE:\n[new code]"
-    codey_response = prompt_agent(codey_prompt, f"File Content ({target_rel}):\n{current_content}\n\nPlan:\n{architect_plan}")
+    codey_prompt = """You are Codey, a code editor. Your ONLY job is to output a SEARCH/REPLACE block.
+Do NOT explain, do NOT use Step 1/Step 2. ONLY output the block below.
+
+EXACT FORMAT (no deviations):
+SEARCH:
+<exact existing code lines to replace>
+REPLACE:
+<new code lines>
+
+Example:
+SEARCH:
+    return old_value
+REPLACE:
+    return new_value"""
+    codey_response = prompt_agent(codey_prompt, f"File: {target_rel}\n\nPlan:\n{architect_plan}\n\nFile content (first 3000 chars):\n{current_content[:3000]}")
     
     try:
         search_block = re.search(r"SEARCH:\n(.*?)\nREPLACE:", codey_response, re.DOTALL)
@@ -123,14 +147,18 @@ def run_swe_benchmark_loop(issue_data):
         print(f"[CODEY] Erro: {e}")
     
     post_results = run_in_docker(container_name, test_script)
-    qa_decision = prompt_agent("Are you Vera? Reply SUCCESS only if all tests passed.", f"Final Logs:\n{post_results}")
+    
+    # Verificação programática — NÃO depende do LLM para decidir pass/fail
+    failure_keywords = ['failed', 'error', 'traceback', 'exception', 'assert']
+    passed = not any(k in post_results.lower() for k in failure_keywords)
     
     os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+    log_dialogue("VERA PROGRAMMATIC", f"PASSED={passed}\nOutput:\n{post_results[:500]}")
     
-    if "SUCCESS" in qa_decision.upper():
+    if passed:
         print(f"-> [ORDEM] {instance_id} RESOLVIDA!"); return True
     else:
-        print(f"-> [ORDEM] {instance_id} REJEITADA."); return False
+        print(f"-> [ORDEM] {instance_id} REJEITADA. (testes ainda falham)"); return False
 
 if __name__ == "__main__":
     with open("data/swebench_sample_5.json", "r") as f: issues = json.load(f)
