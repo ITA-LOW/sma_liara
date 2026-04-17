@@ -49,7 +49,7 @@ def prompt_agent(role_prompt, user_content):
 def extract_function_context(content, function_name):
     """Extrai o bloco de uma função específica do arquivo para dar contexto focado ao Codey."""
     if not function_name:
-        return content[:4000]
+        return content[:10000]  # fallback: ~125-150 linhas medianas
     lines = content.split('\n')
     start = None
     for i, line in enumerate(lines):
@@ -57,8 +57,8 @@ def extract_function_context(content, function_name):
             start = max(0, i - 2)
             break
     if start is None:
-        return content[:4000]
-    end = min(len(lines), start + 80)
+        return content[:10000]  # função não encontrada, fallback
+    end = min(len(lines), start + 200)  # até 200 linhas da função
     return '\n'.join(lines[start:end])
 
 def extract_test_failure(test_output):
