@@ -228,7 +228,7 @@ REPLACE:
             # Vera guia Codey com o erro específico — mais eficiente que remandar o arquivo inteiro
             user_msg = f"File: {target_rel}\n\nYour previous fix FAILED. Test error:\n{previous_error}\n\nOriginal plan:\n{architect_plan}\n\nCode section:\n{code_context}\n\nTry a DIFFERENT approach."
 
-        print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES + 1}...")
+        print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES}...")
 
         # Restaura o arquivo original antes de cada tentativa (exceto a primeira)
         if attempt > 1:
