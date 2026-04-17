@@ -40,7 +40,8 @@ def prompt_agent(role_prompt, user_content):
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode())
             content = result['message']['content']
-            log_dialogue("SYSTEM: " + role_prompt[:50] + "...", user_content[:200] + "...")
+            log_dialogue("SYSTEM: " + role_prompt[:100] + "...", user_content[:1000] + "...")
+
             log_dialogue("AGENT RESPONSE", content)
             return content
     except Exception as e:
