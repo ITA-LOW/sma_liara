@@ -40,12 +40,43 @@ def prompt_agent(role_prompt, user_content):
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode())
             content = result['message']['content']
-            log_dialogue("SYSTEM: " + role_prompt[:100] + "...", user_content[:1000] + "...")
+            # Log completo - sem truncamento
+            log_dialogue(f"SYSTEM: {role_prompt}", user_content)
 
             log_dialogue("AGENT RESPONSE", content)
             return content
     except Exception as e:
         return f"ERROR: {e}"
+
+def fuzzy_apply_edit(file_path, old_str, new_str):
+    """Aplica patch com correspondência flexível de whitespace.
+    Normaliza espaços para encontrar o bloco mesmo com indentação diferente."""
+    content = read_file(file_path)
+    if content.startswith("ERROR:"):
+        return content
+
+    # Tentativa 1: match exato (mais seguro)
+    if old_str in content:
+        return write_file(file_path, content.replace(old_str, new_str, 1))
+
+    # Tentativa 2: normaliza espaços em branco e tenta achar no conteúdo linha a linha
+    def normalize(s):
+        return re.sub(r'[ \t]+', ' ', s.strip())
+
+    content_lines = content.split('\n')
+    search_lines = [normalize(l) for l in old_str.strip().split('\n')]
+    n = len(search_lines)
+
+    for i in range(len(content_lines) - n + 1):
+        window = [normalize(l) for l in content_lines[i:i+n]]
+        if window == search_lines:
+            # Encontrou! Aplica a substituição mantendo indendatação original
+            leading = re.match(r'^(\s*)', content_lines[i]).group(1)
+            new_lines = new_str.split('\n')
+            patched = content_lines[:i] + new_lines + content_lines[i+n:]
+            return write_file(file_path, '\n'.join(patched))
+
+    return f"ERROR: Patch não encontrado em {file_path} (nem com fuzzy match)."
 
 def extract_function_context(content, function_name):
     """Extrai o bloco de uma função específica do arquivo para dar contexto focado ao Codey."""
@@ -77,13 +108,13 @@ def extract_test_failure(test_output):
     return '\n'.join(failure_lines) if failure_lines else test_output[:800]
 
 def apply_codey_patch(codey_response, target_abs):
-    """Extrai e aplica o patch SEARCH/REPLACE do Codey. Retorna True se aplicou."""
+    """Extrai e aplica o patch SEARCH/REPLACE do Codey com fuzzy matching."""
     search_block = re.search(r"SEARCH:\n(.*?)\nREPLACE:", codey_response, re.DOTALL)
     replace_block = re.search(r"REPLACE:\n(.*?)$", codey_response, re.DOTALL)
     if search_block and replace_block:
         old_str = search_block.group(1).strip().replace("```python", "").replace("```", "").strip()
         new_str = replace_block.group(1).strip().replace("```python", "").replace("```", "").strip()
-        result = apply_edit(target_abs, old_str, new_str)
+        result = fuzzy_apply_edit(target_abs, old_str, new_str)
         print(f"[CODEY] {result}")
         return "SUCCESS" in result.upper() or "applied" in result.lower()
     return False
@@ -137,7 +168,14 @@ def run_swe_benchmark_loop(issue_data):
     # === FASE 2: Sully — Identificação do Arquivo e Função ===
     file_list = run_in_docker(container_name, "find . -maxdepth 2 -not -path '*/.*'")
     architect_plan = prompt_agent(
-        "You are Sully. Analyze this bug. Output ONLY:\n1) FILE: <relative/path/to/file.py>\n2) FUNCTION: <function_name_to_edit>",
+        """You are Sully. Analyze this bug. Output ONLY:
+1) FILE: <relative/path/to/source_file.py>
+2) FUNCTION: <function_name_to_edit>
+
+CRITICAL RULES:
+- Target SOURCE CODE files ONLY (e.g. django/db/backends/sqlite3/base.py)
+- NEVER target test files (files in tests/ or containing 'test' in the name)
+- The fix must go in the production code that has the bug""",
         f"Bug: {issue_data['problem_statement'][:2000]}\n\nTest output:\n{extract_test_failure(pre_results)}\n\nFiles available:\n{file_list}"
     )
 
