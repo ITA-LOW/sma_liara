@@ -24,7 +24,7 @@ def run_sanity_check():
     print("[2/3] Verificando Ollama (Llama3)...")
     OLLAMA_URL = "http://localhost:11434/api/chat"
     data = {
-        "model": "llama3",
+        "model": "llama3.1",
         "messages": [{"role": "user", "content": "Respond with the word SUCCESS."}],
         "stream": False
     }

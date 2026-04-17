@@ -15,7 +15,7 @@ except ImportError:
 
 # Configuração Base
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "llama3" 
+MODEL = "llama3.1" 
 REPOS_DIR = "repos"
 LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 
