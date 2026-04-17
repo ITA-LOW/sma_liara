@@ -29,6 +29,10 @@
 *.synctex.gz
 *.blg
 *.bbl
+*.fdb_latexmk
+*.fls
+*.run.xml
+*.bcf
 Computer_Society_LaTeX_template/*.aux
 Computer_Society_LaTeX_template/*.log
 
@@ -42,7 +46,8 @@ Computer_Society_LaTeX_template/*.log
 !artigos_referencia/*.pdf
 !Computer_Society_LaTeX_template/*.tex
 
-/artefatos
-/artigos_referencia
-/Computer_Society_LaTeX_template
-/openclaw_swe_benchmark/dgx_execution
+# Removidos ignores dos diretórios principais para permitir sincronização GitHub
+# /artefatos
+# /artigos_referencia
+# /Computer_Society_LaTeX_template
+# /openclaw_swe_benchmark/dgx_execution

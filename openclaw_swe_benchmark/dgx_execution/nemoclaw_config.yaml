@@ -1,0 +1,36 @@
+# nemoclaw_config.yaml
+version: "1.0"
+runtime: "openshell-sandbox"
+
+models:
+  - name: "llama-3-8b-instruct"
+    backend: "nemotron"
+    vram_allocation: "16GB"
+    instances: 3
+
+agents:
+  architect:
+    enabled: true
+    config_path: "./agents/Sully.yaml"
+    model: "llama-3-8b-instruct"
+    sandbox_policy: "read-only"
+
+  coder:
+    enabled: true
+    config_path: "./agents/Codey.yaml"
+    model: "llama-3-8b-instruct"
+    sandbox_policy: "read-write"
+    allowed_paths: ["/workspace/swe-bench-repo/"]
+
+  qa:
+    enabled: true
+    config_path: "./agents/Vera.yaml"
+    model: "llama-3-8b-instruct"
+    sandbox_policy: "execute-only"
+    allowed_commands: ["pytest", "unittest", "make test"]
+
+environment:
+  docker_image: "sweagent/swe-bench:latest"
+  mounts:
+    - src: "./swe-bench-repo"
+      dst: "/workspace"
