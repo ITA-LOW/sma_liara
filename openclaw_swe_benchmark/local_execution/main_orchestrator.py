@@ -17,6 +17,7 @@ except ImportError:
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL = os.environ.get("LIARA_MODEL", "llama3.1")
 REPOS_DIR = "repos"
+MAX_RETRIES = int(os.environ.get("LIARA_RETRIES", "2"))  # Vera pode guiar Codey N vezes
 os.makedirs("data", exist_ok=True)
 LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 
@@ -46,9 +47,9 @@ def prompt_agent(role_prompt, user_content):
         return f"ERROR: {e}"
 
 def extract_function_context(content, function_name):
-    """Extrai o bloco de uma função específica do arquivo para dar contexto ao Codey."""
+    """Extrai o bloco de uma função específica do arquivo para dar contexto focado ao Codey."""
     if not function_name:
-        return content[:4000]  # fallback: primeiros 4000 chars
+        return content[:4000]
     lines = content.split('\n')
     start = None
     for i, line in enumerate(lines):
@@ -56,9 +57,35 @@ def extract_function_context(content, function_name):
             start = max(0, i - 2)
             break
     if start is None:
-        return content[:4000]  # função não encontrada, fallback
-    end = min(len(lines), start + 80)  # até 80 linhas da função
+        return content[:4000]
+    end = min(len(lines), start + 80)
     return '\n'.join(lines[start:end])
+
+def extract_test_failure(test_output):
+    """Extrai apenas as linhas de falha relevantes do output dos testes — economiza contexto."""
+    lines = test_output.split('\n')
+    failure_lines = []
+    capture = False
+    for line in lines:
+        if any(k in line for k in ['FAILED', 'ERROR', 'AssertionError', 'Traceback', 'File "', '>>>']):
+            capture = True
+        if capture:
+            failure_lines.append(line)
+        if len(failure_lines) > 30:  # Máximo 30 linhas de erro
+            break
+    return '\n'.join(failure_lines) if failure_lines else test_output[:800]
+
+def apply_codey_patch(codey_response, target_abs):
+    """Extrai e aplica o patch SEARCH/REPLACE do Codey. Retorna True se aplicou."""
+    search_block = re.search(r"SEARCH:\n(.*?)\nREPLACE:", codey_response, re.DOTALL)
+    replace_block = re.search(r"REPLACE:\n(.*?)$", codey_response, re.DOTALL)
+    if search_block and replace_block:
+        old_str = search_block.group(1).strip().replace("```python", "").replace("```", "").strip()
+        new_str = replace_block.group(1).strip().replace("```python", "").replace("```", "").strip()
+        result = apply_edit(target_abs, old_str, new_str)
+        print(f"[CODEY] {result}")
+        return "SUCCESS" in result.upper() or "applied" in result.lower()
+    return False
 
 def clone_and_checkout(repo_full_name, commit_id):
     """Clona o repositório e faz checkout no commit da issue."""
@@ -78,7 +105,7 @@ def clone_and_checkout(repo_full_name, commit_id):
     return local_path
 
 def run_swe_benchmark_loop(issue_data):
-    """Loop de Reparação Científica LIARA v3.3.0 (Smart Context)."""
+    """Loop de Reparação Científica LIARA v3.4.0 (Retry + Smart Context)."""
     instance_id = issue_data['instance_id']
     repo_name = issue_data['repo']
     base_commit = issue_data['base_commit']
@@ -95,21 +122,24 @@ def run_swe_benchmark_loop(issue_data):
 
         container_name = f"liara-{instance_id.replace('__', '-').replace('.', '-')}"
         os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-        subprocess.run(["docker", "run", "-d", "--name", container_name, "-v", f"{repo_path}:/app", "-w", "/app", "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
+        subprocess.run(["docker", "run", "-d", "--name", container_name, "-v", f"{repo_path}:/app", "-w", "/app",
+                        "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
         run_in_docker(container_name, "pip install -e .")
     except Exception as e:
         print(f"[ERRO] {e}"); return False
 
+    # === FASE 1: Reprodução do Bug ===
     pre_results = run_in_docker(container_name, test_script)
-    print(f"[REPRO] {'BUG DETECTADO (OK)' if any(k in pre_results.lower() for k in ['fail', 'error', 'traceback']) else 'PASSOU (INESPERADO)'}")
+    bug_detected = any(k in pre_results.lower() for k in ['fail', 'error', 'traceback'])
+    print(f"[REPRO] {'BUG DETECTADO (OK)' if bug_detected else 'PASSOU (INESPERADO)'}")
 
+    # === FASE 2: Sully — Identificação do Arquivo e Função ===
     file_list = run_in_docker(container_name, "find . -maxdepth 2 -not -path '*/.*'")
     architect_plan = prompt_agent(
         "You are Sully. Analyze this bug. Output ONLY:\n1) FILE: <relative/path/to/file.py>\n2) FUNCTION: <function_name_to_edit>",
-        f"Bug: {issue_data['problem_statement'][:2000]}\n\nTest output:\n{pre_results[:1000]}\n\nFiles available:\n{file_list}"
+        f"Bug: {issue_data['problem_statement'][:2000]}\n\nTest output:\n{extract_test_failure(pre_results)}\n\nFiles available:\n{file_list}"
     )
 
-    # Extração robusta do caminho - múltiplos padrões
     file_match = (
         re.search(r"`([^`]*\.py)`", architect_plan) or
         re.search(r"\*\*([^*]*\.py)\*\*", architect_plan) or
@@ -120,6 +150,7 @@ def run_swe_benchmark_loop(issue_data):
     if not file_match:
         print("[AVISO] Sully não identificou o arquivo. Resposta:")
         print(architect_plan[:500])
+        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
         return False
 
     target_rel = file_match.group(1)
@@ -127,70 +158,82 @@ def run_swe_benchmark_loop(issue_data):
         if target_rel.startswith(prefix):
             target_rel = target_rel[len(prefix):]
 
-    target_abs = os.path.join(repo_path, target_rel)
-    print(f"[CODEY] Realizando cirurgia em {target_rel}...")
-    current_content = read_file(target_abs)
-
-    if current_content.startswith("ERROR:"):
-        print(f"[CODEY] {current_content}"); return False
-
-    # Extrai função identificada pelo Sully para dar contexto focado ao Codey
     func_match = re.search(r"FUNCTION:\s*`?([a-zA-Z_][a-zA-Z0-9_]*)`?", architect_plan, re.IGNORECASE)
     function_name = func_match.group(1) if func_match else None
+
+    target_abs = os.path.join(repo_path, target_rel)
+    print(f"[CODEY] Arquivo alvo: {target_rel} | Função: {function_name}")
+    current_content = read_file(target_abs)
+    if current_content.startswith("ERROR:"):
+        print(f"[CODEY] {current_content}")
+        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+        return False
+
     code_context = extract_function_context(current_content, function_name)
-    print(f"[CODEY] Contexto: função '{function_name}' ({len(code_context)} chars enviados)")
 
+    # === FASE 3: Loop Codey + Vera (com retry guiado) ===
     codey_prompt = """You are Codey, a code editor. Your ONLY job is to output a SEARCH/REPLACE block.
-Do NOT explain. Do NOT use Step 1/Step 2. ONLY output the block below.
+Do NOT explain. ONLY output the block.
 
-EXACT FORMAT (no deviations):
+EXACT FORMAT:
 SEARCH:
 <exact existing code lines to replace>
 REPLACE:
-<new code lines>
+<new code lines>"""
 
-Example:
-SEARCH:
-    return old_value
-REPLACE:
-    return new_value"""
-    codey_response = prompt_agent(codey_prompt, f"File: {target_rel}\n\nSully's Plan:\n{architect_plan}\n\nRelevant code section:\n{code_context}")
-
-    try:
-        search_block = re.search(r"SEARCH:\n(.*?)\nREPLACE:", codey_response, re.DOTALL)
-        replace_block = re.search(r"REPLACE:\n(.*?)$", codey_response, re.DOTALL)
-
-        if search_block and replace_block:
-            old_str = search_block.group(1).strip().replace("```python", "").replace("```", "").strip()
-            new_str = replace_block.group(1).strip().replace("```python", "").replace("```", "").strip()
-            result = apply_edit(target_abs, old_str, new_str)
-            print(f"[CODEY] {result}")
+    previous_error = ""
+    for attempt in range(1, MAX_RETRIES + 2):  # +2 para ter pelo menos 1 tentativa + N retries
+        if attempt == 1:
+            user_msg = f"File: {target_rel}\n\nSully's Plan:\n{architect_plan}\n\nCode section:\n{code_context}"
         else:
-            print("[AVISO] Codey falhou no formato SEARCH/REPLACE.")
-    except Exception as e:
-        print(f"[CODEY] Erro: {e}")
+            # Vera guia Codey com o erro específico — mais eficiente que remandar o arquivo inteiro
+            user_msg = f"File: {target_rel}\n\nYour previous fix FAILED. Test error:\n{previous_error}\n\nOriginal plan:\n{architect_plan}\n\nCode section:\n{code_context}\n\nTry a DIFFERENT approach."
 
-    post_results = run_in_docker(container_name, test_script)
+        print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES + 1}...")
 
-    # Verificação programática — NÃO depende do LLM para decidir pass/fail
-    failure_keywords = ['failed', 'error', 'traceback', 'exception']
-    passed = not any(k in post_results.lower() for k in failure_keywords)
+        # Restaura o arquivo original antes de cada tentativa (exceto a primeira)
+        if attempt > 1:
+            subprocess.run(["git", "-C", repo_path, "checkout", "--", target_rel], check=False)
+            current_content = read_file(target_abs)
+            code_context = extract_function_context(current_content, function_name)
+
+        codey_response = prompt_agent(codey_prompt, user_msg)
+        patch_applied = apply_codey_patch(codey_response, target_abs)
+
+        if not patch_applied:
+            print(f"[AVISO] Codey falhou no formato SEARCH/REPLACE na tentativa {attempt}.")
+            previous_error = "Patch format invalid."
+            continue
+
+        # Testa no Docker após cada tentativa
+        post_results = run_in_docker(container_name, test_script)
+        failure_keywords = ['failed', 'error', 'traceback', 'exception']
+        passed = not any(k in post_results.lower() for k in failure_keywords)
+        log_dialogue(f"VERA tentativa {attempt}", f"PASSED={passed}\n{post_results[:500]}")
+
+        if passed:
+            print(f"-> [ORDEM] {instance_id} RESOLVIDA na tentativa {attempt}! 🎉")
+            os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+            return True
+        else:
+            previous_error = extract_test_failure(post_results)
+            print(f"[VERA] Tentativa {attempt} falhou. {'Próxima tentativa...' if attempt <= MAX_RETRIES else 'Esgotadas.'}")
 
     os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-    log_dialogue("VERA PROGRAMMATIC", f"PASSED={passed}\nOutput:\n{post_results[:500]}")
-
-    if passed:
-        print(f"-> [ORDEM] {instance_id} RESOLVIDA!"); return True
-    else:
-        print(f"-> [ORDEM] {instance_id} REJEITADA. (testes ainda falham)"); return False
+    print(f"-> [ORDEM] {instance_id} REJEITADA após {MAX_RETRIES + 1} tentativas.")
+    return False
 
 if __name__ == "__main__":
-    with open("data/swebench_sample_5.json", "r") as f: issues = json.load(f)
-    print(f"=== LIARA: SCIENTIFIC REPAIR v3.3.0 (Smart Context) ===")
+    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_5.json")
+    with open(sample_file, "r") as f: issues = json.load(f)
+    print(f"=== LIARA: SCIENTIFIC REPAIR v3.4.0 (Retry + Smart Context) ===")
+    print(f"Modelo: {MODEL} | Retries: {MAX_RETRIES} | Issues: {len(issues)}")
     res = {"sucesso": 0, "falha": 0}
     for issue in issues:
         if run_swe_benchmark_loop(issue): res["sucesso"] += 1
         else: res["falha"] += 1
         print("-" * 60)
-    print(f"\n[RESULTADO] Sucesso: {res['sucesso']}/5 | Falha: {res['falha']}/5")
+    total = res["sucesso"] + res["falha"]
+    pct = (res["sucesso"] / total * 100) if total > 0 else 0
+    print(f"\n[RESULTADO] Sucesso: {res['sucesso']}/{total} ({pct:.1f}%) | Falha: {res['falha']}/{total}")
     print(f"[FIM] Logs em: {LOG_FILE}")
