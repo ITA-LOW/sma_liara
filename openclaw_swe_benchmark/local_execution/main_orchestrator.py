@@ -516,7 +516,7 @@ REPLACE:
 
 # ====================== ENTRY POINT ======================
 if __name__ == "__main__":
-    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_5.json")
+    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_50.json")
     with open(sample_file, "r") as f:
         issues = json.load(f)
     print(f"=== LIARA: SCIENTIFIC REPAIR v4.0 (Hybrid Intelligence) ===")
