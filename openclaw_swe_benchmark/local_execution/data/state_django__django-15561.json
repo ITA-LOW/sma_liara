@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 763, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 422, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 1032, in run_tests\n    "
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 763, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 422, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 1032, in run_tests\n    "
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 763, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 422, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 1032, in run_tests\n    "
+    }
+  ],
+  "sully_file": "django/db/migrations/operations/fields.py",
+  "sully_function": "AlterField",
+  "resolved": false,
+  "sully_response": "1) FILE: ./django/db/migrations/operations/fields.py  \n2) FUNCTION: AlterField"
+}

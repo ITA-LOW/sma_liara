@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 499, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 288, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 627, in run_tests\n    suite = self."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 499, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 288, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 627, in run_tests\n    suite = self."
+    }
+  ],
+  "sully_file": "django/db/models/query.py",
+  "sully_function": "_prefetch_related_objects",
+  "resolved": false,
+  "sully_response": "1) FILE: django/db/models/query.py\n2) FUNCTION: _prefetch_related_objects\n\nThis function is responsible for handling the prefetching of related objects in Django's ORM. The issue might be related to how it handles GenericForeignKey relationships with models that use UUID as their primary key.\n\nTo fix this, you would need to investigate how `_prefetch_related_objects` processes GFKs and ensure it correctly handles UUID primary keys. Specifically, check how the `select_related` mechanism interacts with GFKs when the primary key is a UUID."
+}

@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 582, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 318, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 714, in run_tests\n    suite = self."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 582, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 318, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 714, in run_tests\n    suite = self."
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 582, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 318, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 714, in run_tests\n    suite = self."
+    }
+  ],
+  "sully_file": "django/db/models/functions/window.py",
+  "sully_function": "_create_window_expr",
+  "resolved": false,
+  "sully_response": "1) FILE: ./django/db/models/functions/window.py  \n2) FUNCTION: _create_window_expr"
+}

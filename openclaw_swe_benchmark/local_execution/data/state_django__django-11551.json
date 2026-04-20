@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch format invalid or syntax error."
+    }
+  ],
+  "sully_file": "django/contrib/admin/checks.py",
+  "sully_function": "_check_list_display_item",
+  "resolved": false,
+  "sully_response": "1) FILE: django/contrib/admin/checks.py\n2) FUNCTION: _check_list_display_item"
+}

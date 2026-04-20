@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    }
+  ],
+  "sully_file": "src/_pytest/logging.py",
+  "sully_function": null,
+  "resolved": false,
+  "sully_response": "1) FILE: ./src/_pytest/logging.py  \n2) FUNCTION: <No specific function identified, but improvements can be made in handling bytes data>"
+}

@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    }
+  ],
+  "sully_file": "sphinx/ext/autodoc/typehints.py",
+  "sully_function": "process_signature",
+  "resolved": false,
+  "sully_response": "1) FILE: `sphinx/ext/autodoc/typehints.py`\n2) FUNCTION: `process_signature`"
+}

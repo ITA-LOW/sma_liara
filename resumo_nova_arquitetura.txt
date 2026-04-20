@@ -1,0 +1,59 @@
+(.venv) aluno@aluno-desktop:~/Documentos/sma_liara/openclaw_swe_benchmark/local_execution$ LIARA_MODEL=qwen2.5-coder:14b LIARA_RETRIES=2 python3 main_orchestrator.py 
+=== LIARA: SCIENTIFIC REPAIR v4.0 (Hybrid Intelligence) ===
+Modelo: qwen2.5-coder:14b | Retries: 2 | Issues: 5
+
+[LIARA v4.0] sympy__sympy-19954
+HEAD is now at 586a43201d Merge pull request #19741 from sachin-4099/gsoc#13
+Previous HEAD position was 586a43201d Merge pull request #19741 from sachin-4099/gsoc#13
+HEAD is now at 6f54459aa0 Merge pull request #19926 from Smit-create/wiener_typo
+5fb2c51820a6b8c788d09314750971e06112d716f78bcc63156b2f89c10ec7ad
+[DOCKER] Executing via bash: pip install -e . -q in liara-sympy-sympy-19954
+[AST] Mapeando repositório...
+[AST] 17924 funções mapeadas
+[DOCKER] Executing via bash: python3 bin/test sympy/combinatorics/tests/test_perm_groups.py in liara-sympy-sympy-19954
+[REPRO] BUG DETECTADO ✓
+[PATTERN] Check list/array index bounds and loop ranges
+[AST] Candidatos: ['sympy/combinatorics/perm_groups.py', '../../../../../../../../app/sympy/combinatorics/perm_groups.py']
+[DOCKER] Executing via bash: find . -name '*.py' -not -path '*/test*' -not -path '*/__pycache__/*' -maxdepth 4 in liara-sympy-sympy-19954
+[SULLY] Arquivo: sympy/__init__.py | Função: None
+[CODEY] Tentativa 1/3 — contexto nível 1...
+[CODEY] SUCCESS: File /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/sympy/sympy/__init__.py updated.
+[VALIDA] ✗ Sintaxe inválida — SyntaxError na linha 103: unmatched ')'. Descartando.
+[CODEY] Tentativa 2/3 — contexto nível 2...
+[CODEY] ERROR: Patch não encontrado em /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/sympy/sympy/__init__.py (nem com fuzzy match).
+[CODEY] Tentativa 3/3 — contexto nível 3...
+[CODEY] SUCCESS: File /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/sympy/sympy/__init__.py updated.
+[VALIDA] ✗ Sintaxe inválida — SyntaxError na linha 193: unmatched ')'. Descartando.
+-> [ORDEM] sympy__sympy-19954 REJEITADA após 3 tentativas.
+------------------------------------------------------------
+[LIARA v4.0] django__django-13821
+HEAD is now at ba72606760 Fixed #30347 -- Fixed typo in docs/topics/db/aggregation.txt.
+Previous HEAD position was ba72606760 Fixed #30347 -- Fixed typo in docs/topics/db/aggregation.txt.
+HEAD is now at e64c1d8055 Fixed #32302 -- Allowed migrations to be loaded from regular packages with no __file__ attribute.
+10dba09ee4a915de6f831e89d628b77a191dcb61e0c40c38047becc8b24f7121
+[DOCKER] Executing via bash: pip install -e . -q in liara-django-django-13821
+[AST] Mapeando repositório...
+[AST] 3728 funções mapeadas
+[DOCKER] Executing via bash: python3 tests/runtests.py tests/backends/sqlite/tests.py in liara-django-django-13821
+[REPRO] BUG DETECTADO ✓
+[PATTERN] A function is returning None unexpectedly — check return statements
+[DOCKER] Executing via bash: find . -name '*.py' -not -path '*/test*' -not -path '*/__pycache__/*' -maxdepth 4 in liara-django-django-13821
+[SULLY] Arquivo: django/db/backends/sqlite3/features.py | Função: check_expression_indexes_support
+[CODEY] Tentativa 1/3 — contexto nível 1...
+[CODEY] ERROR: Patch não encontrado em /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/django/django/db/backends/sqlite3/features.py (nem com fuzzy match).
+[CODEY] Tentativa 2/3 — contexto nível 2...
+[CODEY] ERROR: Patch não encontrado em /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/django/django/db/backends/sqlite3/features.py (nem com fuzzy match).
+[CODEY] Tentativa 3/3 — contexto nível 3...
+[CODEY] ERROR: Patch não encontrado em /home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/repos/django/django/db/backends/sqlite3/features.py (nem com fuzzy match).
+-> [ORDEM] django__django-13821 REJEITADA após 3 tentativas.
+------------------------------------------------------------
+[LIARA v4.0] sympy__sympy-19783
+HEAD is now at 6f54459aa0 Merge pull request #19926 from Smit-create/wiener_typo
+[DOCKER] Executing via bash: find . -name '*.py' -not -path '*/test*' -not -path '*/__pycache__/*' -maxdepth 4 in liara-sympy-sympy-19783
+^C[SULLY] Arquivo: bin/sympy_time.py | Função: None
+Traceback (most recent call last):
+  File "/home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/main_orchestrator.py", line 526, in <module>
+    if run_swe_benchmark_loop(issue):
+  File "/home/aluno/Documentos/sma_liara/openclaw_swe_benchmark/local_execution/main_orchestrator.py", line 437, in run_swe_benchmark_loop
+    print(f"[SULLY] Arquivo: {target_rel} | Função: {function_name}")
+KeyboardInterrupt

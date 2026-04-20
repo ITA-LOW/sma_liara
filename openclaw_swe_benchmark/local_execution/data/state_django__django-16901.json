@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", l"
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", l"
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", l"
+    }
+  ],
+  "sully_file": "django/db/models/query_utils.py",
+  "sully_function": "combine",
+  "resolved": false,
+  "sully_response": "1) FILE: django/db/models/query_utils.py\n2) FUNCTION: combine"
+}

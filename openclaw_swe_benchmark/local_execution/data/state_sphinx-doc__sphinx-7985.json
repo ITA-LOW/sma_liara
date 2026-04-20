@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch format invalid or syntax error."
+    }
+  ],
+  "sully_file": "sphinx/builders/linkcheck.py",
+  "sully_function": "check_links",
+  "resolved": false,
+  "sully_response": "1) FILE: sphinx/builders/linkcheck.py  \n2) FUNCTION: check_links"
+}

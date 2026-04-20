@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 26, in <module>\n    from django.test import TestCase, TransactionTestCase\n  File \"/app/django/test/__init__.py\", line 3, in <module>\n    from django.test.client import (\n  File \"/app/django/test/client.py\", line 15, in <"
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 662, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 382, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 920, in run_tests\n    s"
+    }
+  ],
+  "sully_file": "django/db/models/query_utils.py",
+  "sully_function": "combine",
+  "resolved": false,
+  "sully_response": "1) FILE: ./django/db/models/query_utils.py  \n2) FUNCTION: combine"
+}

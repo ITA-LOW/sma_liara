@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch format invalid or syntax error."
+    }
+  ],
+  "sully_file": "django/db/backends/sqlite3/schema.py",
+  "sully_function": "add_field",
+  "resolved": false,
+  "sully_response": "1) FILE: ./django/db/backends/sqlite3/schema.py\n2) FUNCTION: add_field"
+}

@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 668, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 386, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 901, in run_tests\n    s"
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 668, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 365, in django_tests\n    test_labels, state = setup_run_tests(verbosity, start_at, start_after, test_labels)\n  File \"/app/tests/runtests"
+    }
+  ],
+  "sully_file": "django/contrib/admin/views/autocomplete.py",
+  "sully_function": "get",
+  "resolved": false,
+  "sully_response": "1) FILE: ./django/contrib/admin/views/autocomplete.py\n2) FUNCTION: get"
+}

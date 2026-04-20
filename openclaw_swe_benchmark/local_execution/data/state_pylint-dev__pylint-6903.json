@@ -1,0 +1,21 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    }
+  ],
+  "sully_file": "pylint/lint/run.py",
+  "sully_function": "_query_cpu",
+  "resolved": false,
+  "sully_response": "1) FILE: pylint/lint/run.py\n2) FUNCTION: _query_cpu"
+}
