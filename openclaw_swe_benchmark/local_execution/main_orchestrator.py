@@ -23,6 +23,9 @@ MAX_RETRIES = int(os.environ.get("LIARA_RETRIES", "2"))
 os.makedirs("data", exist_ok=True)
 LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 
+# LIARA v4.1: Versão atual
+VERSION = "4.1.0"
+
 # Heurísticas determinísticas: padrão de erro → dica de reparo
 ERROR_PATTERNS = [
     (r'IndexError',               'Check list/array index bounds and loop ranges'),
@@ -341,7 +344,10 @@ def run_swe_benchmark_loop(issue_data):
         subprocess.run(["docker", "run", "-d", "--name", container_name,
                         "-v", f"{repo_path}:/app", "-w", "/app",
                         "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
+        # LIARA v4.1: Instalação robusta de dependências
+        print("[SETUP] Instalando dependências de projeto e teste...")
         run_in_docker(container_name, "pip install -e . -q")
+        run_in_docker(container_name, "pip install pytest pytest-django pytest-mock tox -q")
     except Exception as e:
         print(f"[ERRO] {e}")
         return False
@@ -380,36 +386,59 @@ def run_swe_benchmark_loop(issue_data):
     all_candidates = list(dict.fromkeys(ast_candidates + emb_candidates))
 
     # === FASE 2: Sully — Identificação do Arquivo e Função ===
-    file_list = run_in_docker(
-        container_name,
-        "find . -name '*.py' -not -path '*/test*' -not -path '*/__pycache__/*' -maxdepth 4"
-    )
+    # LIARA v4.1: Redução drástica de ruído no contexto do Sully
+    if all_candidates:
+        file_context = "Top relevant files identified by static analysis:\n" + "\n".join(all_candidates[:15])
+    else:
+        # Fallback para find limitado se AST falhar
+        file_context = "Files in repository:\n" + run_in_docker(container_name, "find . -maxdepth 3 -name '*.py' | head -n 50")
 
     sully_context = (
-        f"Bug: {issue_data['problem_statement'][:2000]}\n\n"
-        f"Test output:\n{extract_test_failure(pre_results)}"
+        f"Bug Report: {issue_data['problem_statement'][:2500]}\n\n"
+        f"Test Failure Traceback:\n{extract_test_failure(pre_results)}"
     )
     if error_hint:
-        sully_context += f"\n\nError type hint: {error_hint}"
-    if all_candidates:
-        sully_context += "\n\nMost likely files (from static analysis):\n" + \
-                         "\n".join(f"- {c}" for c in all_candidates[:5])
+        sully_context += f"\n\nAnalyzed Bug Pattern: {error_hint}"
     if repro_script:
-        sully_context += f"\n\nReproduction code from bug report:\n{repro_script[:500]}"
-    sully_context += f"\n\nAll source files:\n{file_list}"
+        sully_context += f"\n\nReproduction script extracted:\n{repro_script[:500]}"
+    
+    sully_context += f"\n\n{file_context}"
 
-    architect_plan = prompt_agent(
-        """You are Sully. Analyze this bug. Output ONLY:
-1) FILE: <relative/path/to/source_file.py>
-2) FUNCTION: <function_name_to_edit>
+    # LIARA v4.1: STRICT JSON MODE
+    sully_prompt = """You are Sully, a software architect. Analyze the bug and output ONLY a JSON object.
+Do NOT explain. Do NOT chatter.
 
-CRITICAL RULES:
-- Target SOURCE CODE files ONLY
-- NEVER target test files (files in tests/ or containing 'test' in the name)
-- If 'Most likely files' are listed, strongly prefer those
-- The fix must go in the production code that has the bug""",
-        sully_context
-    )
+FORMAT:
+{
+  "file": "relative/path/to/file.py",
+  "function": "function_name"
+}
+
+RULES:
+- Preferred files for fix: the ones listed in 'relevant files'
+- NEVER target test files
+- The file MUST exist in the provided list."""
+
+    architect_plan = "{}"
+    for _ in range(2): # Retry parsing if model is chatty
+        raw_res = prompt_agent(sully_prompt, sully_context)
+        try:
+            # Tenta limpar lixo antes/depois do JSON
+            json_match = re.search(r'(\{.*?\})', raw_res, re.DOTALL)
+            if json_match:
+                plan_data = json.loads(json_match.group(1))
+                target_rel = plan_data.get("file")
+                function_name = plan_data.get("function")
+                if target_rel:
+                    architect_plan = raw_res
+                    break
+        except:
+            continue
+    
+    if not target_rel:
+        print("[ERRO] Sully falhou em fornecer um JSON válido.")
+        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+        return False
 
     state["sully_response"] = architect_plan
 
@@ -447,12 +476,21 @@ CRITICAL RULES:
         return False
 
     # === FASE 3: Loop Codey + Vera (escalada progressiva de contexto) ===
+    # LIARA v4.1: FEW-SHOT PROMPTING
     codey_prompt = """You are Codey, a code editor. Your ONLY job is to output a SEARCH/REPLACE block.
-Do NOT explain. ONLY output the block.
+Do NOT explain. 
+
+EXAMPLE:
+SEARCH:
+def old_func():
+    return True
+REPLACE:
+def old_func():
+    return False
 
 EXACT FORMAT:
 SEARCH:
-<exact existing code lines to replace>
+<exact code lines>
 REPLACE:
 <new code lines>"""
 
@@ -516,10 +554,10 @@ REPLACE:
 
 # ====================== ENTRY POINT ======================
 if __name__ == "__main__":
-    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_50.json")
+    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_5.json")
     with open(sample_file, "r") as f:
         issues = json.load(f)
-    print(f"=== LIARA: SCIENTIFIC REPAIR v4.0 (Hybrid Intelligence) ===")
+    print(f"=== LIARA: SCIENTIFIC REPAIR v{VERSION} (Hybrid Intelligence) ===")
     print(f"Modelo: {MODEL} | Retries: {MAX_RETRIES} | Issues: {len(issues)}")
     res = {"sucesso": 0, "falha": 0}
     for issue in issues:
