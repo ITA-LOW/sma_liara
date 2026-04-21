@@ -8,11 +8,8 @@ import ast as python_ast
 from datetime import datetime
 
 # Import de Skills Reais do LIARA
-try:
-    from skills.file_editor.real_editor import read_file, apply_edit, write_file
-    from skills.bash_executor.docker_qa import run_in_docker
-except ImportError:
-    print("[AVISO] Skills reais não encontradas.")
+from skills.file_editor.real_editor import read_file, apply_edit, write_file
+from skills.bash_executor.docker_qa import run_in_docker
 
 # ====================== CONFIG ======================
 OLLAMA_URL = "http://localhost:11434/api/chat"
@@ -62,15 +59,12 @@ def prompt_agent(role_prompt, user_content):
         OLLAMA_URL, json.dumps(data).encode('utf-8'),
         {'Content-Type': 'application/json'}
     )
-    try:
-        with urllib.request.urlopen(req) as response:
-            result  = json.loads(response.read().decode())
-            content = result['message']['content']
-            log_dialogue(f"SYSTEM: {role_prompt}", user_content)
-            log_dialogue("AGENT RESPONSE", content)
-            return content
-    except Exception as e:
-        return f"ERROR: {e}"
+    with urllib.request.urlopen(req) as response:
+        result  = json.loads(response.read().decode())
+        content = result['message']['content']
+        log_dialogue(f"SYSTEM: {role_prompt}", user_content)
+        log_dialogue("AGENT RESPONSE", content)
+        return content
 
 def get_embedding(text, model="nomic-embed-text"):
     """Obtém embedding local via Ollama. Retorna None se modelo não disponível."""
@@ -78,12 +72,9 @@ def get_embedding(text, model="nomic-embed-text"):
     req  = urllib.request.Request(
         EMBED_URL, json.dumps(data).encode('utf-8'),
         {'Content-Type': 'application/json'}
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            return json.loads(response.read().decode())['embedding']
-    except Exception as e:
-        print(f"[AVISO] Falha ao obter embedding: {e}")
-        return None
+    )
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.loads(response.read().decode())['embedding']
 
 # ====================== PATCH APPLICATION ======================
 def fuzzy_apply_edit(file_path, old_str, new_str):
@@ -117,15 +108,10 @@ def validate_patch_syntax(file_path):
     """Valida sintaxe Python localmente (sem Docker). Retorna (ok, error_msg)."""
     if not file_path.endswith('.py'):
         return True, ""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            source = f.read()
-        python_ast.parse(source)
-        return True, ""
-    except SyntaxError as e:
-        return False, f"SyntaxError na linha {e.lineno}: {e.msg}"
-    except Exception as e:
-        return False, str(e)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        source = f.read()
+    python_ast.parse(source)
+    return True, ""
 
 def apply_codey_patch(codey_response, target_abs):
     """Extrai, aplica e pré-valida sintaticamente o patch SEARCH/REPLACE."""
@@ -197,14 +183,11 @@ def build_ast_map(repo_path):
             rel   = os.path.relpath(fpath, repo_path)
             if 'test' in rel.lower():
                 continue
-            try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                    tree = python_ast.parse(f.read(), filename=fpath)
-                for node in python_ast.walk(tree):
-                    if isinstance(node, (python_ast.FunctionDef, python_ast.AsyncFunctionDef)):
-                        func_map.setdefault(node.name, []).append((rel, node.lineno))
-            except:
-                continue
+            with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                tree = python_ast.parse(f.read(), filename=fpath)
+            for node in python_ast.walk(tree):
+                if isinstance(node, (python_ast.FunctionDef, python_ast.AsyncFunctionDef)):
+                    func_map.setdefault(node.name, []).append((rel, node.lineno))
     return func_map
 
 def localize_from_traceback(test_output, func_map, repo_path):
@@ -245,14 +228,11 @@ def find_relevant_files_by_embedding(repo_path, problem_statement, func_map, top
                 continue
             seen.add(rel)
             fpath = os.path.join(repo_path, rel)
-            try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                    snippet = f.read(3000)
-                file_emb = get_embedding(snippet)
-                if file_emb:
-                    scored.append((cosine_similarity(query_emb, file_emb), rel))
-            except:
-                continue
+            with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                snippet = f.read(3000)
+            file_emb = get_embedding(snippet)
+            if file_emb:
+                scored.append((cosine_similarity(query_emb, file_emb), rel))
 
     scored.sort(reverse=True)
     return [rel for _, rel in scored[:top_n]]
@@ -309,13 +289,7 @@ def clone_and_checkout(repo_full_name, commit_id):
     if not os.path.exists(local_path):
         subprocess.run(["git", "clone", f"https://github.com/{repo_full_name}.git", local_path], check=True)
     subprocess.run(["git", "-C", local_path, "reset", "--hard", "HEAD"], check=True)
-    try:
-        subprocess.run(["git", "-C", local_path, "clean", "-fdx"], check=True)
-    except:
-        uid, gid = os.getuid(), os.getgid()
-        subprocess.run(["docker", "run", "--rm", "-v", f"{local_path}:/app",
-                        "alpine", "chown", "-R", f"{uid}:{gid}", "/app"], check=True)
-        subprocess.run(["git", "-C", local_path, "clean", "-fdx"], check=True)
+    subprocess.run(["git", "-C", local_path, "clean", "-fdx"], check=True)
     subprocess.run(["git", "-C", local_path, "checkout", commit_id], check=True)
     return local_path
 
@@ -332,25 +306,21 @@ def run_swe_benchmark_loop(issue_data):
     state = load_state(instance_id)
 
     # --- Setup ---
-    try:
-        repo_path   = clone_and_checkout(repo_name, base_commit)
-        patch_path  = os.path.join(REPOS_DIR, f"{instance_id}.patch")
-        with open(patch_path, "w") as f:
-            f.write(test_patch)
-        subprocess.run(["git", "-C", repo_path, "apply", os.path.abspath(patch_path)], check=True)
+    repo_path   = clone_and_checkout(repo_name, base_commit)
+    patch_path  = os.path.join(REPOS_DIR, f"{instance_id}.patch")
+    with open(patch_path, "w") as f:
+        f.write(test_patch)
+    subprocess.run(["git", "-C", repo_path, "apply", os.path.abspath(patch_path)], check=True)
 
-        container_name = f"liara-{instance_id.replace('__', '-').replace('.', '-')}"
-        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-        subprocess.run(["docker", "run", "-d", "--name", container_name,
-                        "-v", f"{repo_path}:/app", "-w", "/app",
-                        "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
-        # LIARA v4.1: Instalação robusta de dependências
-        print("[SETUP] Instalando dependências de projeto e teste...")
-        run_in_docker(container_name, "pip install -e . -q")
-        run_in_docker(container_name, "pip install pytest pytest-django pytest-mock tox -q")
-    except Exception as e:
-        print(f"[ERRO] {e}")
-        return False
+    container_name = f"liara-{instance_id.replace('__', '-').replace('.', '-')}"
+    os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+    subprocess.run(["docker", "run", "-d", "--name", container_name,
+                    "-v", f"{repo_path}:/app", "-w", "/app",
+                    "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
+    # LIARA v4.1: Instalação robusta de dependências
+    print("[SETUP] Instalando dependências de projeto e teste...")
+    run_in_docker(container_name, "pip install -e . -q")
+    run_in_docker(container_name, "pip install pytest pytest-django pytest-mock tox -q")
 
     # === FASE 0: Análise AST local (ANTES de qualquer LLM) ===
     print("[AST] Mapeando repositório...")
@@ -426,18 +396,15 @@ RULES:
     architect_plan = "{}"
     for _ in range(2): # Retry parsing if model is chatty
         raw_res = prompt_agent(sully_prompt, sully_context)
-        try:
-            # Tenta limpar lixo antes/depois do JSON
-            json_match = re.search(r'(\{.*?\})', raw_res, re.DOTALL)
-            if json_match:
-                plan_data = json.loads(json_match.group(1))
-                target_rel = plan_data.get("file")
-                function_name = plan_data.get("function")
-                if target_rel:
-                    architect_plan = raw_res
-                    break
-        except:
-            continue
+        # Tenta limpar lixo antes/depois do JSON
+        json_match = re.search(r'(\{.*?\})', raw_res, re.DOTALL)
+        if json_match:
+            plan_data = json.loads(json_match.group(1))
+            target_rel = plan_data.get("file")
+            function_name = plan_data.get("function")
+            if target_rel:
+                architect_plan = raw_res
+                break
     
     if not target_rel:
         print("[ERRO] Sully falhou em fornecer um JSON válido.")
