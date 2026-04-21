@@ -78,11 +78,11 @@ def get_embedding(text, model="nomic-embed-text"):
     req  = urllib.request.Request(
         EMBED_URL, json.dumps(data).encode('utf-8'),
         {'Content-Type': 'application/json'}
-    )
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode())['embedding']
-    except:
+    except Exception as e:
+        print(f"[AVISO] Falha ao obter embedding: {e}")
         return None
 
 # ====================== PATCH APPLICATION ======================
@@ -375,7 +375,11 @@ def run_swe_benchmark_loop(issue_data):
     # Localização semântica via embedding (opcional, requer nomic-embed-text)
     emb_candidates = find_relevant_files_by_embedding(repo_path, issue_data['problem_statement'], func_map)
     if emb_candidates:
-        print(f"[EMB] Candidatos semânticos: {emb_candidates}")
+        msg = f"[EMB] Candidatos semânticos: {emb_candidates}"
+        print(msg)
+        log_dialogue("HYBRID ANALYZER", msg)
+    else:
+        log_dialogue("HYBRID ANALYZER", "[EMB] Nenhum candidato semântico encontrado ou modelo offline.")
 
     # Síntese de teste de reprodução
     repro_script = synthesize_repro_test(issue_data['problem_statement'])
