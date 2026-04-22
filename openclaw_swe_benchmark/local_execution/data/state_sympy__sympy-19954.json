@@ -24,10 +24,98 @@
     {
       "attempt": 3,
       "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        78186417"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        71551575"
+    },
+    {
+      "attempt": 1,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        68430420"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        12387747"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: Scalpel Error: unexpected indent (<unknown>, line 2193)"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: Scalpel Error: unexpected indent (<unknown>, line 2193)"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 1,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        18259667"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 3,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        93057641"
+    },
+    {
+      "attempt": 1,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        84677978"
+    },
+    {
+      "attempt": 2,
+      "error": "ERROR:\n\nOUTPUT:\n============================= test process starts ==============================\nexecutable:         /usr/local/bin/python3  (3.9.25-final-0) [CPython]\narchitecture:       64-bit\ncache:              yes\nground types:       python \nnumpy:              None\nrandom seed:        44693682"
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
     }
   ],
-  "sully_file": "setupegg.py",
-  "sully_function": null,
+  "sully_file": "sympy/combinatorics/perm_groups.py",
+  "sully_function": "minimal_blocks",
   "resolved": false,
-  "sully_response": "This appears to be a list of all the Python module files in the SymPy project, which is a popular open-source library for symbolic mathematics. The list includes:\n\n1. Core modules and submodules for various mathematical areas like algebra, calculus, discrete math, geometry, logic, matrix operations, etc.\n\n2. Special functions and their implementations\n\n3. Solvers for equations, differential equations, inequalities, etc.\n\n4. Functions for working with complex numbers, piecewise expressions, trigonometry, exponentials, etc.\n\n5. Statistics and probability modules\n\n6. Tensor analysis and differential geometry tools\n\n7. Lie algebras and representation theory\n\n8. Various utility scripts and helpers\n\n9. Main entry points like setupegg.py (for setup) and isympy.py (interactive shell)\n\nThe structure of this list shows the organization of SymPy's codebase into logical categories, with modules for related functionality grouped together.\n\nIt's a comprehensive overview of the entire SymPy library, from basic operations to advanced mathematical concepts. This level of detail in an open-source project is quite impressive and allows developers to easily explore all the features available."
+  "sully_response": "{\n  \"file\": \"sympy/combinatorics/perm_groups.py\",\n  \"function\": \"sylow_subgroup\"\n}"
 }
