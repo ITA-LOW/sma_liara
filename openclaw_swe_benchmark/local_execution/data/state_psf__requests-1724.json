@@ -12,10 +12,34 @@
     {
       "attempt": 3,
       "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "E           TypeError: 'requests.post(url, data=\\'[{\"some\": \"data\"}]\\', files={\\'some\\': f})' object (type: <class 'str'>) must be callable\n\ntest_requests.py:362: TypeError\n=============================== warnings summary ===============================\nrequests/packages/urllib3/_collections.py:7\n  "
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 1,
+      "error": "E           TypeError: 'requests.post(url, data=\\'[{\"some\": \"data\"}]\\', files={\\'some\\': f})' object (type: <class 'str'>) must be callable\n\ntest_requests.py:362: TypeError\n=============================== warnings summary ===============================\nrequests/packages/urllib3/_collections.py:7\n  "
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "E           TypeError: 'requests.post(url, data=\\'[{\"some\": \"data\"}]\\', files={\\'some\\': f})' object (type: <class 'str'>) must be callable\n\ntest_requests.py:362: TypeError\n=============================== warnings summary ===============================\nrequests/packages/urllib3/_collections.py:7\n  "
     }
   ],
-  "sully_file": "requests/api.py",
-  "sully_function": "request",
+  "sully_file": "requests/sessions.py",
+  "sully_function": "send",
   "resolved": false,
-  "sully_response": "1) FILE: ./requests/api.py  \n2) FUNCTION: request"
+  "sully_response": " ```json\n{\n  \"file\": \"requests/sessions.py\",\n  \"function\": \"send\"\n}\n```"
 }

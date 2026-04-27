@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/config/__init__.py\", line 860, in import_plugin\n    __import__(importspec)\n  File \"/app/astropy/__init__.py\", line 119, in <module>\n    _check_numpy()\n  File \"/app/astropy/__init__.py\", line 114, in _check_nump"
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/astropy/__init__.py\", line 107, in _check_numpy\n    import numpy\nModuleNotFoundError: No module named 'numpy'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site"
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/config/__init__.py\", line 860, in import_plugin\n    __import__(importspec)\n  File \"/app/astropy/__init__.py\", line 122, in <module>\n    _check_numpy()\n  File \"/app/astropy/__init__.py\", line 117, in _check_nump"
     }
   ],
-  "sully_file": "astropy/io/fits/hdu/image.py",
-  "sully_function": null,
+  "sully_file": "astropy/__init__.py",
+  "sully_function": "_check_numpy",
   "resolved": false,
-  "sully_response": "TARGET_FILE: astropy/io/fits/hdu/image.py\n\nMODIFIED_CONTENTS:\n```python\ndef read(self, data=None, header=None):\n    if isinstance(data, (bytes, bytearray)):\n        data = np.frombuffer(data, dtype=self.dtype)\n    elif isinstance(data, str):\n        with open(data, 'rb') as f:\n            data = np.frombuffer(f.read(), dtype=self.dtype)\n    self.data = data\n    self.header = header if header is not None else fits.Header()\n```\n\nEXPLANATION:\nThe modification ensures that the `read` method of the `ImageHDU` class in the `astropy.io.fits.hdu.image` module can now accept binary data as input, which is particularly useful for reading FITS images from byte buffers or binary strings. This enhancement broadens the flexibility of the FITS reader to accommodate various data sources."
+  "sully_response": " ```json\n{\n  \"file\": \"astropy/__init__.py\",\n  \"function\": \"__call__\"\n}\n```"
 }

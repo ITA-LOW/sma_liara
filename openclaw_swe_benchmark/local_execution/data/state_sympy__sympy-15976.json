@@ -1,8 +1,33 @@
 {
   "patches_tried": [],
-  "errors": [],
-  "sully_file": ".py",
-  "sully_function": null,
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_mathml.py\", line 603, in test_presentation_mathml_sums\n    assert mml_1.childNodes[0].nodeName == 'munderover'\nAttributeError: 'NoneType' object has no attribute 'childNodes'\n\n__________________________________________________"
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_mathml.py\", line 738, in test_presentation_symbol\n    assert mml.nodeName == 'msup'\nAssertionError\n\n============= tests finished: 38 passed, 1 failed, in 0.11 seconds =============\nDO *NOT* COMMIT!\n"
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_mathml.py\", line 738, in test_presentation_symbol\n    assert mml.nodeName == 'msup'\nAssertionError\n\n============= tests finished: 38 passed, 1 failed, in 0.11 seconds =============\nDO *NOT* COMMIT!\n"
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_mathml.py\", line 738, in test_presentation_symbol\n    assert mml.nodeName == 'msup'\nAssertionError\n\n============= tests finished: 38 passed, 1 failed, in 0.11 seconds =============\nDO *NOT* COMMIT!\n"
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_mathml.py\", line 738, in test_presentation_symbol\n    assert mml.nodeName == 'msup'\nAssertionError\n\n============= tests finished: 38 passed, 1 failed, in 0.11 seconds =============\nDO *NOT* COMMIT!\n"
+    }
+  ],
+  "sully_file": "sympy/printing/mathml.py",
+  "sully_function": "_print_Sum",
   "resolved": false,
-  "sully_response": "The list you provided appears to be a comprehensive directory structure for the SymPy library, which is a Python library for symbolic mathematics. Here's a breakdown of some key components:\n\n1. **Modules and Subdirectories**:\n   - `sympy/`: The main directory containing all the modules of the SymPy library.\n   - `sympy/core/`, `sympy/solvers/`, `sympy/polys/`, etc.: These are subdirectories for different areas of mathematics like core symbolic computation, solving equations, polynomial operations, etc.\n\n2. **Python Files**:\n   - Each directory contains Python `.py` files that define various functions, classes, and modules.\n   - For example, `sympy/core/basic.py` likely contains the basic class definitions for SymPy objects.\n\n3. **Special Scripts**:\n   - The `bin/` directory contains scripts used for maintenance tasks like generating module lists, updating author information, running timing tests, etc.\n   - `setupegg.py`, `isympy.py`: These are setup and interactive shell scripts for SymPy.\n\n4. **Documentation and Testing**:\n   - While not explicitly listed, there would typically be directories for documentation (`docs/`) and testing (`tests/`).\n\n5. **Configuration Files**:\n   - Files like `setupegg.py`, `isympy.py`, and others at the root might also include configuration settings or startup code.\n\n6. **Version Control and Metadata**:\n   - The presence of files like `.mailmap` and scripts for updating authors suggests that this is likely a version-controlled repository with some tools for maintaining metadata and authorship information.\n\nThis structure reflects the modular design of SymPy, where each major mathematical area has its own directory with corresponding functionality. This organization helps in maintaining and extending the library efficiently."
+  "sully_response": " ```json\n{\n  \"file\": \"sympy/printing/mathml.py\",\n  \"function\": \"test_presentation_symbol\"\n}\n```"
 }

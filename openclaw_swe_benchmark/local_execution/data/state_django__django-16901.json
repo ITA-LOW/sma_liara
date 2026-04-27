@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", l"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: unindent does not match any outer indentation level (line 71)"
     }
   ],
-  "sully_file": "django/db/models/query_utils.py",
-  "sully_function": "combine",
+  "sully_file": "django/db/models/sql/query.py",
+  "sully_function": "Q",
   "resolved": false,
-  "sully_response": "1) FILE: django/db/models/query_utils.py\n2) FUNCTION: combine"
+  "sully_response": " ```json\n{\n  \"file\": \"django/db/models/sql/query.py\",\n  \"function\": \"Q\"\n}\n```"
 }

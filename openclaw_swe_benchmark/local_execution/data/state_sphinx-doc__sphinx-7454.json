@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/config/__init__.py\", line 860, in import_plugin\n    __import__(importspec)\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/assertion/rewrite.py\", line 186, in exec_module\n    exec(co, module.__dict__)\n  "
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "sphinx/ext/autodoc/typehints.py",
-  "sully_function": "process_signature",
+  "sully_file": "sphinx/util/__init__.py",
+  "sully_function": "__call__",
   "resolved": false,
-  "sully_response": "1) FILE: `sphinx/ext/autodoc/typehints.py`\n2) FUNCTION: `process_signature`"
+  "sully_response": " ```json\n{\n  \"file\": \"sphinx/util/__init__.py\",\n  \"function\": \"__call__\"\n}\n```"
 }

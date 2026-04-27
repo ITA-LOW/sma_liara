@@ -12,10 +12,34 @@
     {
       "attempt": 3,
       "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 499, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 288, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 627, in run_tests\n    suite = self."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 27, in <module>\n    import MySQLdb\nModuleNotFoundError: No module named 'MySQLdb'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 30"
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 496, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 285, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 627, in run_tests\n    suite = self.build_s"
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 499, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 288, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 627, in run_tests\n    suite = self.build_s"
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "django/db/models/query.py",
-  "sully_function": "_prefetch_related_objects",
+  "sully_file": "tests/runtests.py",
+  "sully_function": "run_tests",
   "resolved": false,
-  "sully_response": "1) FILE: django/db/models/query.py\n2) FUNCTION: _prefetch_related_objects\n\nThis function is responsible for handling the prefetching of related objects in Django's ORM. The issue might be related to how it handles GenericForeignKey relationships with models that use UUID as their primary key.\n\nTo fix this, you would need to investigate how `_prefetch_related_objects` processes GFKs and ensure it correctly handles UUID primary keys. Specifically, check how the `select_related` mechanism interacts with GFKs when the primary key is a UUID."
+  "sully_response": " ```json\n{\n  \"file\": \"tests/runtests.py\",\n  \"function\": \"run_tests\"\n}\n```"
 }

@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "sympy/__init__.py",
-  "sully_function": null,
+  "sully_file": "sympy/codegen/tests/test_ast.py",
+  "sully_function": "test_CodeBlock_cse__issue_14118",
   "resolved": false,
-  "sully_response": "This is a list of files and directories in the SymPy library, an open-source Python library for symbolic mathematics. The contents are organized by category:\n\n1. Core functionality:\n   - sympy/__init__.py\n   - sympy/core/\n   - sympy/functions/\n   - sympy/polys/\n\n2. Solvers:\n   - sympy/solvers/\n   - sympy/liealgebras/\n\n3. Calculus:\n   - sympy/integrals/\n   - sympy/diffgeom/\n\n4. Linear algebra:\n   - sympy/matrices/\n   - sympy/polys/matrices/\n\n5. Statistics and probability:\n   - sympy/stats/\n\n6. Special functions:\n   - sympy/functions/special/\n\n7. Plotting:\n   - sympy/plotting/\n\n8. Printing:\n   - sympy/printing/\n\n9. Assumptions:\n   - sympy/assumptions/\n\n10. Plotting:\n    - sympy/plotting/\n\n11. Geometry:\n    - sympy/geometry/\n\n12. Utilities and scripts:\n    - bin/\n    - setupegg.py\n\n13. Interactive shell:\n    - isympy.py\n\nThe list includes both Python modules (.py files) and directories containing additional modules. This structure reflects the modular design of SymPy, with various sub-packages handling different aspects of symbolic mathematics.\n\nSome notable features highlighted by this file list include:\n\n- Comprehensive support for special functions\n- Advanced polynomial manipulation and algebraic computation\n- Strong differential equation solving capabilities\n- Geometric computing\n- Statistical distributions and random variables\n\nThis organization allows SymPy to be highly extensible while maintaining a clear separation between different mathematical domains."
+  "sully_response": " ```json\n{\n  \"file\": \"sympy/codegen/tests/test_ast.py\",\n  \"function\": \"test_String\"\n}\n```"
 }

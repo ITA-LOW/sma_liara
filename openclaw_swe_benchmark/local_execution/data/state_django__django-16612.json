@@ -12,10 +12,34 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 19,"
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 19,"
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 19,"
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 19,"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 17, in <module>\n    import django\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 19,"
     }
   ],
   "sully_file": "django/contrib/admin/sites.py",
   "sully_function": "catch_all_view",
   "resolved": false,
-  "sully_response": "1) FILE: ./django/contrib/admin/sites.py\n2) FUNCTION: catch_all_view"
+  "sully_response": " ```json\n{\n  \"file\": \"django/contrib/admin/sites.py\",\n  \"function\": \"catch_all_view\"\n}\n```"
 }

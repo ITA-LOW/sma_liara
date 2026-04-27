@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "src/_pytest/logging.py",
-  "sully_function": null,
+  "sully_file": "src/_pytest/setuponly.py",
+  "sully_function": "_show_fixture_action",
   "resolved": false,
-  "sully_response": "1) FILE: ./src/_pytest/logging.py  \n2) FUNCTION: <No specific function identified, but improvements can be made in handling bytes data>"
+  "sully_response": " ```json\n{\n  \"file\": \"src/_pytest/setuponly.py\",\n  \"function\": \"_show_fixture_action\"\n}\n```"
 }

@@ -12,10 +12,34 @@
     {
       "attempt": 3,
       "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 646, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 384, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 784, in run_tests\n    s"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 646, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 384, in django_tests\n    failures = test_runner.run_tests(test_labels)\n  File \"/app/django/test/runner.py\", line 784, in run_tests\n    suite = "
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 597, in <module>\n    elif using_selenium_hub and not options.external_host:\nNameError: name 'using_selenium_hub' is not defined\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "django/utils/html.py",
-  "sully_function": "urlize",
+  "sully_file": "tests/runtests.py",
+  "sully_function": "run_tests",
   "resolved": false,
-  "sully_response": "1) FILE: ./django/utils/html.py\n2) FUNCTION: urlize"
+  "sully_response": " ```json\n{\n  \"file\": \"tests/runtests.py\",\n  \"function\": \"run_tests\"\n}\n```"
 }

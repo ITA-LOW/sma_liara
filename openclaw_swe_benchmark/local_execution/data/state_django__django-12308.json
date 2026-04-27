@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 568, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 310, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 693, in run_tests\n    suite = self."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 568, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 310, in django_tests\n    failures = test_runner.run_tests(\n  File \"/app/django/test/runner.py\", line 693, in run_tests\n    suite = self.build_s"
+    },
+    {
+      "attempt": 2,
+      "error": "Traceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 569, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 289, in django_tests\n    state = setup(verbosity, test_labels, parallel, start_at, start_after)\n  File \"/app/tests/runtests.py\", line 141, in s"
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "django/contrib/admin/utils.py",
-  "sully_function": "display_for_field",
+  "sully_file": "tests/runtests.py",
+  "sully_function": "django_tests",
   "resolved": false,
-  "sully_response": "1) FILE: django/contrib/admin/utils.py\n2) FUNCTION: display_for_field"
+  "sully_response": " ```json\n{\n  \"file\": \"tests/runtests.py\",\n  \"function\": \"django_tests\"\n}\n```"
 }

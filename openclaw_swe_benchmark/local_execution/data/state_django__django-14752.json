@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nTraceback (most recent call last):\n  File \"/app/tests/runtests.py\", line 668, in <module>\n    failures = django_tests(\n  File \"/app/tests/runtests.py\", line 365, in django_tests\n    test_labels, state = setup_run_tests(verbosity, start_at, start_after, test_labels)\n  File \"/app/tests/runtests"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "django/contrib/admin/views/autocomplete.py",
-  "sully_function": "get",
+  "sully_file": "tests/runtests.py",
+  "sully_function": "run_tests",
   "resolved": false,
-  "sully_response": "1) FILE: ./django/contrib/admin/views/autocomplete.py\n2) FUNCTION: get"
+  "sully_response": " ```json\n{\n  \"file\": \"tests/runtests.py\",\n  \"function\": \"run_tests\"\n}\n```"
 }

@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_repr.py\", line 51, in test_Add\n    assert srepr(sympify('x + 3 - 2', evaluate=False), order='none') == \"Add(Symbol('x'), Integer(3), Mul(Integer(-1), Integer(2)))\"\n  File \"/app/sympy/core/sympify.py\", line 406, in sympify\n    "
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/printing/tests/test_repr.py\", line 51, in test_Add\n    assert srepr(sympify('x + 3 - 2', evaluate=False), order='none') == \"Add(Symbol('x'), Integer(3), Mul(Integer(-1), Integer(2)))\"\n  File \"/app/sympy/core/sympify.py\", line 406, in sympify\n    "
     }
   ],
-  "sully_file": "setup.py",
-  "sully_function": null,
+  "sully_file": "sympy/printing/tests/test_repr.py",
+  "sully_function": "test_set",
   "resolved": false,
-  "sully_response": "This appears to be a list of files and directories for the SymPy symbolic mathematics library, an open-source Python library used for symbolic computation. The list includes:\n\n1. Various modules within SymPy, such as core functionality, polynomials, solvers, functions, stats (statistics), and more.\n\n2. Assorted scripts in the bin directory for tasks like:\n   - Generating module lists\n   - Running time benchmarks\n   - Updating author information\n   - Generating test cases\n\n3. Some top-level files like:\n   - setup.py for installation\n   - README.md\n   - LICENSE\n\n4. Various Python scripts scattered throughout, such as:\n   - isympy (interactive SymPy shell)\n   - setupegg.py \n\n5. Directories for different parts of SymPy's structure, like:\n   - modules \n   - bin utilities\n   - examples\n   - doc documentation\n\nThis comprehensive list suggests that this is the root directory of a full SymPy source code checkout or distribution package. It contains everything needed to build, run, and develop with SymPy.\n\nIs there anything specific you'd like me to explain further about SymPy's file structure or functionality based on this list?"
+  "sully_response": " ```json\n{\n  \"file\": \"sympy/printing/tests/test_repr.py\",\n  \"function\": \"test_set\"\n}\n```"
 }

@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/config/__init__.py\", line 860, in import_plugin\n    __import__(importspec)\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/assertion/rewrite.py\", line 186, in exec_module\n    exec(co, module.__dict__)\n  "
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/config/__init__.py\", line 860, in import_plugin\n    __import__(importspec)\n  File \"/usr/local/lib/python3.9/site-packages/_pytest/assertion/rewrite.py\", line 186, in exec_module\n    exec(co, module.__dict__)\n  "
     }
   ],
   "sully_file": "sphinx/builders/linkcheck.py",
-  "sully_function": "check_links",
+  "sully_function": "pytest_cmdline_parse",
   "resolved": false,
-  "sully_response": "1) FILE: sphinx/builders/linkcheck.py  \n2) FUNCTION: check_links"
+  "sully_response": " ```json\n{\n  \"file\": \"sphinx/builders/linkcheck.py\",\n  \"function\": \"pytest_cmdline_parse\"\n}\n```"
 }

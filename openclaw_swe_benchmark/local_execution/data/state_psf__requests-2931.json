@@ -12,10 +12,22 @@
     {
       "attempt": 3,
       "error": "ERROR:\nbash: line 1: pytest: command not found\n\nOUTPUT:\n"
+    },
+    {
+      "attempt": 1,
+      "error": "E       recursive dependency involving fixture 'httpbin' detected\n>       available fixtures: _dj_autoclear_mailbox, _django_clear_site_cache, _django_db_helper, _django_db_marker, _django_set_urlconf, _django_setup_unittest, _fail_for_invalid_template_variable, _live_server_helper, _template_string"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: SEARCH/REPLACE block not found or malformed."
+    },
+    {
+      "attempt": 3,
+      "error": "E       recursive dependency involving fixture 'httpbin' detected\n>       available fixtures: _dj_autoclear_mailbox, _django_clear_site_cache, _django_db_helper, _django_db_marker, _django_set_urlconf, _django_setup_unittest, _fail_for_invalid_template_variable, _live_server_helper, _template_string"
     }
   ],
-  "sully_file": "requests/api.py",
-  "sully_function": "request",
+  "sully_file": "test_requests.py",
+  "sully_function": "test_set_cookie_on_301",
   "resolved": false,
-  "sully_response": "1) FILE: ./requests/api.py\n2) FUNCTION: request"
+  "sully_response": " ```json\n{\n  \"file\": \"test_requests.py\",\n  \"function\": \"test_set_cookie_on_301\"\n}\n```"
 }

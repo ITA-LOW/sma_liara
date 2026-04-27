@@ -12,10 +12,34 @@
     {
       "attempt": 3,
       "error": "Patch format invalid or syntax error."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "django/urls/resolvers.py",
-  "sully_function": "get_resolver",
+  "sully_file": "django/test/runner.py",
+  "sully_function": "run_tests",
   "resolved": false,
-  "sully_response": "1) FILE: ./django/urls/resolvers.py\n2) FUNCTION: get_resolver"
+  "sully_response": " ```json\n{\n  \"file\": \"django/test/runner.py\",\n  \"function\": \"run_tests\"\n}\n```"
 }

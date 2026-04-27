@@ -1,0 +1,18 @@
+{
+  "patches_tried": [],
+  "errors": [
+    {
+      "attempt": 1,
+      "error": "sympy/concrete/tests/test_products.py[19] .................F.             [FAIL]\n\n________________________________________________________________________________\n____________ sympy/concrete/tests/test_products.py:test_issue_13546 ____________\n  File \"/app/sympy/concrete/tests/test_products.py\", lin"
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    }
+  ],
+  "sully_file": "sympy/concrete/tests/test_products.py",
+  "sully_function": "test_issue_13546",
+  "resolved": true,
+  "sully_response": " ```json\n{\n  \"file\": \"sympy/concrete/tests/test_products.py\",\n  \"function\": \"test_issue_13546\"\n}\n```",
+  "attempts": 3
+}

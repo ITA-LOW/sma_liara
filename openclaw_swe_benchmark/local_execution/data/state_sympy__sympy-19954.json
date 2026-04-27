@@ -112,10 +112,46 @@
     {
       "attempt": 3,
       "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (v4.3.3)."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/combinatorics/tests/test_perm_groups.py\", line 909, in test_sylow_subgroup\n    S = G.sylow_subgroup(p=2)\n  File \"/app/sympy/combinatorics/perm_groups.py\", line 4354, in sylow_subgroup\n    blocks = self.minimal_blocks()\n  File \"/app/sympy/combinat"
+    },
+    {
+      "attempt": 1,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 2,
+      "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
+    },
+    {
+      "attempt": 3,
+      "error": "Traceback (most recent call last):\n  File \"/app/sympy/combinatorics/tests/test_perm_groups.py\", line 516, in test_minimal_blocks\n    assert P.minimal_blocks() == [[0, 1, 0, 1, 0, 1], [0, 1, 2, 0, 1, 2]]\nAssertionError\n\n tests finished: 57 passed, 1 failed, 1 skipped, 2 expected to fail, \nin 3.28 sec"
     }
   ],
   "sully_file": "sympy/combinatorics/perm_groups.py",
   "sully_function": "minimal_blocks",
   "resolved": false,
-  "sully_response": "{\n  \"file\": \"sympy/combinatorics/perm_groups.py\",\n  \"function\": \"sylow_subgroup\"\n}"
+  "sully_response": " ```json\n{\n  \"file\": \"sympy/combinatorics/perm_groups.py\",\n  \"function\": \"minimal_blocks\"\n}\n```"
 }

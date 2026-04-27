@@ -3,18 +3,6 @@
   "errors": [
     {
       "attempt": 1,
-      "error": "Patch format invalid or syntax error."
-    },
-    {
-      "attempt": 2,
-      "error": "Patch format invalid or syntax error."
-    },
-    {
-      "attempt": 3,
-      "error": "Patch format invalid or syntax error."
-    },
-    {
-      "attempt": 1,
       "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     },
     {
@@ -26,8 +14,8 @@
       "error": "Patch failed: ERROR: Patch n\u00e3o encontrado (strip+indent ou substring exata)."
     }
   ],
-  "sully_file": "tests/runtests.py",
-  "sully_function": "run_tests",
+  "sully_file": "astropy/modeling/separable.py",
+  "sully_function": "separability_matrix",
   "resolved": false,
-  "sully_response": " ```json\n{\n  \"file\": \"tests/runtests.py\",\n  \"function\": \"run_tests\"\n}\n```"
+  "sully_response": " ```json\n{\n  \"file\": \"astropy/modeling/separable.py\",\n  \"function\": \"separability_matrix\"\n}\n```"
 }
