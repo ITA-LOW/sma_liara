@@ -24,7 +24,7 @@ LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 # LIARA v4.4.1 — núcleo benchmark-agnóstico: localização híbrida + contexto AST + patch + testes.
 # Extensões por domínio: prefira acrescentar entradas em ERROR_PATTERNS / EXPERT_HINTS (dados),
 # ou variáveis de ambiente, em vez de lógica ad-hoc no loop principal.
-VERSION = "4.4.3"
+VERSION = "4.5.0"
 
 # Prefixo estável no prompt: detecta modo de contexto sem acoplar a texto natural de um benchmark.
 AST_CONTEXT_MARKER = "# LIARA:AST_FUNCTION_SCOPE\n"
@@ -105,25 +105,104 @@ def extract_first_json_object(text):
         return None
     return json.JSONDecoder().raw_decode(text, start)[0]
 
-# ====================== PATCH APPLICATION ======================
-def fuzzy_apply_edit(file_path, old_str, new_str):
-    """Aplica SEARCH/REPLACE: substituição literal se possível; senão casamento por conteúdo + indentação.
+# ====================== ANTI-LEAKAGE / PATH VALIDATION ======================
+def is_test_path(path_str):
+    """Determina se o caminho aponta para arquivos de teste (anti-leakage).
+    
+    Exclui caminhos contendo /test, /tests, test_, _test.py para evitar
+    desqualificação no benchmark por modificação indevida de testes.
+    """
+    if not path_str:
+        return False
+    norm = path_str.replace("\\", "/").lower().strip()
+    for prefix in ["/app/", "app/", "./"]:
+        if norm.startswith(prefix):
+            norm = norm[len(prefix):]
+    norm = "/" + norm.lstrip("/")
+    
+    parts = [p for p in norm.split("/") if p]
+    if not parts:
+        return False
+    filename = parts[-1]
+    dirnames = parts[:-1]
+    
+    # Exclui se algum diretório intermediário for de teste
+    for d in dirnames:
+        if d in ("test", "tests", "testing"):
+            return True
+        if d.startswith("test_") or d.startswith("tests_") or d.endswith("_test") or d.endswith("_tests"):
+            return True
+    
+    # Exclui se o arquivo for de teste
+    if filename in ("test.py", "tests.py"):
+        return True
+    if filename.startswith("test_") or filename.endswith("_test.py") or filename.endswith("_tests.py"):
+        return True
+    if re.search(r'(^|_)test(s)?(_|\.py$)', filename):
+        return True
+        
+    return False
 
-    Exige que cada linha não vazia do SEARCH tenha a mesma indentação (nº de espaços à esquerda)
-    que a linha correspondente no arquivo — evita casar o mesmo texto em outro nível do AST.
+def filter_production_files(candidates):
+    """Filtra lista de candidatos excluindo qualquer caminho de teste."""
+    return [c for c in candidates if c and not is_test_path(c)]
+
+# ====================== PATCH APPLICATION (THE SCALPEL) ======================
+def validate_patch_syntax(content_or_path, is_content=False):
+    """Valida sintaxe Python localmente via ast.parse (sem Docker). Retorna (ok, error_msg)."""
+    if is_content:
+        source = content_or_path
+    else:
+        if not content_or_path.endswith('.py'):
+            return True, ""
+        with open(content_or_path, 'r', encoding='utf-8') as f:
+            source = f.read()
+    try:
+        python_ast.parse(source)
+    except SyntaxError as e:
+        return False, f"SyntaxError: {e.msg} (line {e.lineno})"
+    except Exception as e:
+        return False, f"ParseError: {e}"
+    return True, ""
+
+def sanitize_patch_block(raw):
+    """Remove cercas ``` e linhas vazias no início/fim; normaliza quebras de linha preservando indentação."""
+    s = raw.replace("```python", "").replace("```", "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = s.split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+def fuzzy_apply_edit(file_path, old_str, new_str):
+    """Aplica SEARCH/REPLACE: normaliza CRLF/LF e espaços iniciais no The Scalpel.
+    
+    Valida sintaxe via ast.parse() em memória antes de persistir alterações ou subir container.
     """
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
+    # Normalização rigorosa de quebras de linha (\r\n vs \n)
+    content_norm = content.replace("\r\n", "\n").replace("\r", "\n")
+    old_str_norm = old_str.replace("\r\n", "\n").replace("\r", "\n")
+    new_str_norm = new_str.replace("\r\n", "\n").replace("\r", "\n")
+
     def get_indent(line):
         return len(line) - len(line.lstrip())
 
-    if old_str in content:
-        new_content = content.replace(old_str, new_str, 1)
-        return write_file(file_path, new_content)
+    # 1. Tentativa: Substituição exata de substring
+    if old_str_norm in content_norm:
+        patched = content_norm.replace(old_str_norm, new_str_norm, 1)
+        if file_path.endswith('.py'):
+            ok, err = validate_patch_syntax(patched, is_content=True)
+            if not ok:
+                return f"ERROR: Sintaxe inválida no patch direto: {err}"
+        return write_file(file_path, patched)
 
-    content_lines = content.split('\n')
-    search_lines  = old_str.split('\n')
+    # 2. Tentativa: The Scalpel - Casamento fuzzy com tolerância a drift de indentação
+    content_lines = content_norm.split('\n')
+    search_lines  = old_str_norm.split('\n')
     clean_search  = [ln.strip() for ln in search_lines if ln.strip()]
     nonblank_tpl  = [ln for ln in search_lines if ln.strip()]
     n_search      = len(clean_search)
@@ -153,11 +232,18 @@ def fuzzy_apply_edit(file_path, old_str, new_str):
 
         if len(matched_idx) != len(nonblank_tpl):
             continue
-        if any(get_indent(content_lines[fk]) != get_indent(tpl) for fk, tpl in zip(matched_idx, nonblank_tpl)):
+
+        # Preserva a estrutura de indentação relativa (não exige indentação absoluta idêntica)
+        anchor_file_indent = get_indent(content_lines[matched_idx[0]])
+        anchor_tpl_indent  = get_indent(nonblank_tpl[0])
+        indent_delta       = anchor_file_indent - anchor_tpl_indent
+
+        if any((get_indent(content_lines[fk]) - get_indent(tpl)) != indent_delta
+               for fk, tpl in zip(matched_idx, nonblank_tpl)):
             continue
 
         orig_anchor_indent = get_indent(content_lines[i])
-        new_split = new_str.split('\n')
+        new_split = new_str_norm.split('\n')
         model_anchor_indent = 0
         for nl in new_split:
             if nl.strip():
@@ -165,77 +251,96 @@ def fuzzy_apply_edit(file_path, old_str, new_str):
                 break
 
         final_lines = []
-        for nl in new_split:
-            if not nl.strip():
-                final_lines.append("")
-                continue
-            drift = get_indent(nl) - model_anchor_indent
-            final_lines.append(" " * (orig_anchor_indent + drift) + nl.lstrip())
+        if any(nl.strip() for nl in new_split):
+            for nl in new_split:
+                if not nl.strip():
+                    final_lines.append("")
+                    continue
+                drift = get_indent(nl) - model_anchor_indent
+                final_lines.append(" " * max(0, orig_anchor_indent + drift) + nl.lstrip())
+        else:
+            # Bloco REPLACE vazio (remoção intencional de linhas)
+            final_lines = []
 
-        patched = content_lines[:i] + final_lines + content_lines[i + lines_to_replace :]
-        return write_file(file_path, "\n".join(patched))
+        patched_lines = content_lines[:i] + final_lines + content_lines[i + lines_to_replace :]
+        patched = "\n".join(patched_lines)
+
+        # Pré-validação em memória via ast.parse antes de tocar o disco
+        if file_path.endswith('.py'):
+            ok, err = validate_patch_syntax(patched, is_content=True)
+            if not ok:
+                return f"ERROR: Sintaxe inválida no patch fuzzy: {err}"
+
+        return write_file(file_path, patched)
 
     return "ERROR: Patch não encontrado (strip+indent ou substring exata)."
 
-def validate_patch_syntax(file_path):
-    """Valida sintaxe Python localmente (sem Docker). Retorna (ok, error_msg)."""
-    if not file_path.endswith('.py'):
-        return True, ""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        source = f.read()
-    try:
-        python_ast.parse(source)
-    except SyntaxError as e:
-        return False, f"{e.msg} (line {e.lineno})"
-    return True, ""
+def rollback_file(repo_path, file_abs):
+    """Reseta deterministicamente o arquivo para o estado original estável e valida com git status."""
+    file_rel = os.path.relpath(file_abs, repo_path) if os.path.isabs(file_abs) else file_abs
+    subprocess.run(["git", "-C", repo_path, "checkout", "--", file_rel], check=True, capture_output=True)
+    status_proc = subprocess.run(
+        ["git", "-C", repo_path, "status", "--porcelain", "--", file_rel],
+        capture_output=True,
+        text=True
+    )
+    status_out = status_proc.stdout.strip()
+    if status_out:
+        print(f"[RE-SET WARN] Arquivo {file_rel} ainda com status '{status_out}'. Forçando checkout limpo.")
+        subprocess.run(["git", "-C", repo_path, "checkout", "-f", "--", file_rel], check=True, capture_output=True)
+    print(f"[RE-SET] Arquivo {file_rel} resetado para o estado estável.")
+    return True
 
+def clean_block_fences(block_text):
+    """Remove cercas ``` e descarta chatter pós-cerca (ex: ```\nHope this helps!)."""
+    text = block_text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r'^\s*```[a-zA-Z]*\n', '', text)
+    if "```" in text:
+        text = text.split("```")[0]
+    return sanitize_patch_block(text)
 
-def sanitize_patch_block(raw):
-    """Remove cercas ``` e linhas vazias só no início/fim do bloco; preserva indentação do código."""
-    s = raw.replace("```python", "").replace("```", "").replace("\r\n", "\n")
-    lines = s.split("\n")
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return "\n".join(lines)
+def apply_codey_patch(codey_response, target_abs, repo_path=None):
+    """Extrai, aplica e pré-valida sintaticamente o patch SEARCH/REPLACE (The Scalpel)."""
+    clean_resp = codey_response.replace("\r\n", "\n").replace("\r", "\n")
+    parts = re.split(r"(?:^|\n)\s*(?:```[a-zA-Z]*\n)?\s*(?:\*{0,2}SEARCH\*{0,2}:|SEARCH:)", clean_resp)
+    if len(parts) < 2:
+        parts = re.split(r"SEARCH:", clean_resp)
 
+    if len(parts) < 2:
+        return False, "SEARCH/REPLACE block not found or malformed (missing SEARCH:)."
 
-def apply_codey_patch(codey_response, target_abs):
-    """Extrai, aplica e pré-valida sintaticamente o patch SEARCH/REPLACE (v4.3.4)."""
-    # Scalpel: Isolar apenas o conteúdo real entre as tags, ignorando duplicatas
-    parts = re.split(r"SEARCH:|REPLACE:", codey_response)
-    if len(parts) < 3:
-        return False, "SEARCH/REPLACE block not found or malformed."
+    search_rest = parts[1]
+    replace_parts = re.split(r"(?:^|\n)\s*(?:\*{0,2}REPLACE\*{0,2}:|REPLACE:)", search_rest)
+    if len(replace_parts) < 2:
+        replace_parts = re.split(r"REPLACE:", search_rest)
 
-    # O conteúdo do SEARCH está entre a 1ª e 2ª tag, o REPLACE depois da 2ª
-    old_str = sanitize_patch_block(parts[1])
-    # O REPLACE pode ter lixo depois se o modelo continuou falando, pegamos apenas até o próximo bloco ou fim
-    new_str = sanitize_patch_block(parts[2].split("SEARCH:")[0].split("REPLACE:")[0])
+    if len(replace_parts) < 2:
+        return False, "SEARCH/REPLACE block not found or malformed (missing REPLACE:)."
 
-    result  = fuzzy_apply_edit(target_abs, old_str, new_str)
+    old_str = clean_block_fences(replace_parts[0])
+    raw_replace = replace_parts[1].split("SEARCH:")[0]
+    new_str = clean_block_fences(raw_replace)
+
+    result = fuzzy_apply_edit(target_abs, old_str, new_str)
     print(f"[CODEY] {result}")
     if "SUCCESS" not in result.upper():
+        if repo_path:
+            rollback_file(repo_path, target_abs)
         return False, result
 
     ok, err = validate_patch_syntax(target_abs)
     if not ok:
-        print(f"[VALIDA] ✗ Sintaxe inválida — {err}. Descartando e resetando.")
-        # Auto-Rollback v4.3.5
-        repo_parts = target_abs.split("/repos/")
-        if len(repo_parts) > 1:
-            repo_path = repo_parts[0] + "/repos/" + repo_parts[1].split("/")[0]
+        print(f"[VALIDA] ✗ Sintaxe inválida no arquivo — {err}. Descartando e resetando.")
+        if repo_path:
             rollback_file(repo_path, target_abs)
+        else:
+            repo_parts = target_abs.split("/repos/")
+            if len(repo_parts) > 1:
+                derived_repo = repo_parts[0] + "/repos/" + repo_parts[1].split("/")[0]
+                rollback_file(derived_repo, target_abs)
         return False, err
     print(f"[VALIDA] ✓ Sintaxe OK")
     return True, ""
-
-def rollback_file(repo_path, file_abs):
-    """Reseta o arquivo para o estado original estável (v4.3.5)."""
-    file_rel = os.path.relpath(file_abs, repo_path)
-    subprocess.run(["git", "-C", repo_path, "checkout", file_rel], check=True, capture_output=True)
-    print(f"[RE-SET] Arquivo {file_rel} resetado para o estado estável.")
-    return True
 
 # ====================== STATE MANAGEMENT ======================
 def state_path(instance_id):
@@ -380,7 +485,7 @@ def build_ast_map(repo_path):
                 continue
             fpath = os.path.join(root, fname)
             rel   = os.path.relpath(fpath, repo_path)
-            if 'test' in rel.lower():
+            if is_test_path(rel):
                 continue
             with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
                 tree = python_ast.parse(f.read(), filename=fpath)
@@ -390,7 +495,7 @@ def build_ast_map(repo_path):
     return func_map
 
 def localize_from_traceback(test_output, func_map, repo_path):
-    """Usa o traceback do teste para identificar arquivos-fonte candidatos."""
+    """Usa o traceback do teste para identificar arquivos-fonte candidatos (excluindo testes)."""
     func_names = re.findall(r'in ([a-zA-Z_][a-zA-Z0-9_]+)\s*$', test_output, re.MULTILINE)
     file_hints  = re.findall(r'File "([^"]+\.py)"', test_output)
     candidates  = []
@@ -398,7 +503,7 @@ def localize_from_traceback(test_output, func_map, repo_path):
     for fn in func_names:
         if fn in func_map:
             for (rel, _) in func_map[fn]:
-                if 'test' not in rel.lower() and rel not in candidates:
+                if not is_test_path(rel) and rel not in candidates:
                     candidates.append(rel)
 
     for fh in file_hints:
@@ -411,10 +516,10 @@ def localize_from_traceback(test_output, func_map, repo_path):
         
         rel = clean_fh if not os.path.isabs(clean_fh) else os.path.relpath(clean_fh, repo_path)
         
-        if 'test' not in rel.lower() and rel not in candidates:
+        if not is_test_path(rel) and rel not in candidates:
             candidates.append(rel)
 
-    return candidates[:5]
+    return [c for c in candidates if not is_test_path(c)][:5]
 
 def cosine_similarity(a, b):
     dot   = sum(x*y for x, y in zip(a, b))
@@ -429,7 +534,7 @@ def find_relevant_files_by_embedding(repo_path, problem_statement, func_map, top
     scored, seen = [], set()
     for _, locations in func_map.items():
         for (rel, _) in locations:
-            if rel in seen:
+            if rel in seen or is_test_path(rel):
                 continue
             seen.add(rel)
             fpath = os.path.join(repo_path, rel)
@@ -440,7 +545,7 @@ def find_relevant_files_by_embedding(repo_path, problem_statement, func_map, top
                 scored.append((cosine_similarity(query_emb, file_emb), rel))
 
     scored.sort(reverse=True)
-    return [rel for _, rel in scored[:top_n]]
+    return [rel for _, rel in scored if not is_test_path(rel)][:top_n]
 
 # ====================== CONTEXT EXTRACTION (PROGRESSIVA) ======================
 def get_context_for_attempt(content, function_name, line_hint, attempt):
@@ -559,14 +664,15 @@ def run_swe_benchmark_loop(issue_data):
         print(f"[PATTERN] {error_hint}")
 
     # Localização via traceback (AST-based)
-    ast_candidates = localize_from_traceback(pre_results, func_map, repo_path)
+    # Localização via traceback (AST-based, excluindo testes)
+    ast_candidates = filter_production_files(localize_from_traceback(pre_results, func_map, repo_path))
     if ast_candidates:
-        print(f"[AST] Candidatos: {ast_candidates}")
+        print(f"[AST] Candidatos de produção: {ast_candidates}")
 
     # Localização semântica via embedding (opcional, requer nomic-embed-text)
-    emb_candidates = find_relevant_files_by_embedding(repo_path, issue_data['problem_statement'], func_map)
+    emb_candidates = filter_production_files(find_relevant_files_by_embedding(repo_path, issue_data['problem_statement'], func_map))
     if emb_candidates:
-        msg = f"[EMB] Candidatos semânticos: {emb_candidates}"
+        msg = f"[EMB] Candidatos semânticos de produção: {emb_candidates}"
         print(msg)
         log_dialogue("HYBRID ANALYZER", msg)
     else:
@@ -577,16 +683,19 @@ def run_swe_benchmark_loop(issue_data):
     if repro_script:
         print(f"[REPRO] Script de reprodução extraído do bug report ✓")
 
-    # Combina candidatos (traceback first, embedding second)
-    all_candidates = list(dict.fromkeys(ast_candidates + emb_candidates))
+    # Combina candidatos (traceback first, embedding second - 100% filtrados contra testes)
+    all_candidates = filter_production_files(list(dict.fromkeys(ast_candidates + emb_candidates)))
 
     # === FASE 2: Sully — Identificação do Arquivo e Função ===
-    # LIARA v4.1: Redução drástica de ruído no contexto do Sully
+    # Tarefa 1: Blindagem Anti-Leakage do Sully (Fase 1.1)
     if all_candidates:
-        file_context = "Top relevant files identified by static analysis:\n" + "\n".join(all_candidates[:15])
+        file_context = "Top relevant PRODUCTION files identified by static analysis:\n" + "\n".join(all_candidates[:15])
     else:
-        # Fallback para find limitado se AST falhar
-        file_context = "Files in repository:\n" + run_in_docker(container_name, "find . -maxdepth 3 -name '*.py' | head -n 50")
+        # Fallback para find limitado se AST falhar (filtrando qualquer caminho de teste)
+        raw_find = run_in_docker(container_name, "find . -maxdepth 3 -name '*.py' | head -n 50")
+        find_lines = [ln.strip().lstrip("./") for ln in raw_find.splitlines() if ln.strip()]
+        prod_find = filter_production_files(find_lines)
+        file_context = "Production files in repository:\n" + "\n".join(prod_find[:30])
 
     sully_context = f"Bug Report: {issue_data['problem_statement']}\n\n"
     repro_traceback = extract_test_failure(pre_results)
@@ -594,14 +703,15 @@ def run_swe_benchmark_loop(issue_data):
         sully_context += f"Test Failure Traceback:\n{repro_traceback}\n\n"
     
     sully_context += f"Analyzed Bug Pattern: {error_hint}\n\n"
-    sully_context += "Top relevant files identified by static analysis:\n"
-    for f in ast_candidates + emb_candidates:
+    sully_context += "Top relevant files identified by static analysis (PRODUCTION ONLY):\n"
+    for f in all_candidates:
         sully_context += f"{f}\n"
 
-    # LIARA v4.2.5: Injeção de dicas de funções do traceback
-    func_hints = re.findall(r'in ([a-zA-Z_][a-zA-Z0-9_]+)\s*$', pre_results, re.MULTILINE)
+    # Dicas de funções do traceback (excluindo funções de teste para evitar que o Sully foque em testes)
+    raw_func_hints = re.findall(r'in ([a-zA-Z_][a-zA-Z0-9_]+)\s*$', pre_results, re.MULTILINE)
+    func_hints = [fn for fn in raw_func_hints if not fn.startswith("test_") and not fn.startswith("test")]
     if func_hints:
-        sully_context += "\nSuspected functions identified in traceback:\n"
+        sully_context += "\nSuspected production functions identified in traceback:\n"
         for fn in sorted(list(set(func_hints))):
             sully_context += f"- {fn}\n"
 
@@ -610,7 +720,7 @@ def run_swe_benchmark_loop(issue_data):
     
     sully_context += f"\n\n{file_context}"
 
-    # LIARA v4.1: STRICT JSON MODE
+    # Tarefa 1: Sully Prompt com regra explícita de blindagem anti-leakage
     sully_prompt = """You are Sully, a software architect. Analyze the bug and output ONLY a JSON object.
 Do NOT explain. Do NOT chatter.
 
@@ -621,57 +731,78 @@ FORMAT:
 }
 
 RULES:
-- The "function" key is REQUIRED: the most specific function or method in the traceback where the bug occurs.
+- The "function" key is REQUIRED: the most specific function or method where the bug occurs.
 - ONLY output the relative path from the root of the repository.
 - NEVER include prefixes like '/app/', 'app/', 'repos/' or absolute paths.
-- NEVER target test files.
-- The file MUST exist in the provided list."""
+- STRICT ANTI-LEAKAGE RULE: NEVER target test files (paths containing '/test', '/tests', 'test_', or '_test.py'). Modifying tests is strictly forbidden and causes immediate disqualification.
+- Target PRODUCTION source code files ONLY.
+- The file MUST exist in the provided list of production files."""
 
     architect_plan = "{}"
     plan_data = None
     target_rel = None
     function_name = None
-    for _ in range(2):  # Retry se o modelo vier com texto extra ou JSON inválido
-        raw_res = prompt_agent(sully_prompt, sully_context)
+    sully_retries = 3
+    current_sully_context = sully_context
+
+    for sully_attempt in range(1, sully_retries + 1):
+        raw_res = prompt_agent(sully_prompt, current_sully_context)
         plan_data = extract_first_json_object(raw_res)
         if isinstance(plan_data, dict):
-            target_rel = (plan_data.get("file") or "").strip()
-            function_name = plan_data.get("function")
-            if target_rel:
+            cand_rel = (plan_data.get("file") or "").strip()
+            cand_fn = plan_data.get("function")
+
+            # Limpeza de prefixos (Docker -> Host)
+            for prefix in ["/app/", "app/", "./", "../"]:
+                if cand_rel.startswith(prefix):
+                    cand_rel = cand_rel[len(prefix):]
+            cand_rel = cand_rel.lstrip("/")
+
+            # Tarefa 1: Validação Anti-Leakage no retorno do modelo
+            if is_test_path(cand_rel):
+                print(f"[ANTI-LEAKAGE] Rejeitado: Sully sugeriu arquivo de teste ({cand_rel}). Tentativa {sully_attempt}/{sully_retries}.")
+                current_sully_context += (
+                    f"\n\nREJECTION ERROR: '{cand_rel}' is a TEST file. Modifying test files is strictly forbidden. "
+                    f"Select a valid PRODUCTION source code file from the provided list."
+                )
+                continue
+
+            if cand_rel:
+                target_rel = cand_rel
+                function_name = cand_fn
                 architect_plan = raw_res
                 break
-    
-    if not target_rel:
-        print("[ERRO] Sully falhou em fornecer um JSON válido.")
-        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-        return False
+        else:
+            print(f"[SULLY] Resposta inválida na tentativa {sully_attempt}/{sully_retries}.")
+
+    # Tarefa 1: Fallback determinístico para o candidato de produção do AST se Sully falhou ou escolheu teste
+    production_candidates = filter_production_files(ast_candidates + emb_candidates)
+    if not target_rel or is_test_path(target_rel):
+        print("[ANTI-LEAKAGE] Sully não forneceu arquivo de produção válido. Ativando fallback determinístico do AST.")
+        if production_candidates:
+            target_rel = production_candidates[0]
+            print(f"[ANTI-LEAKAGE] Fallback selecionado do AST: {target_rel}")
+            architect_plan = json.dumps({"file": target_rel, "function": function_name or ""})
+        else:
+            print("[ERRO] Nenhum arquivo de produção disponível para fallback.")
+            os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+            return False
 
     state["sully_response"] = architect_plan
 
-    # Limpeza de caminhos (v4.2.2 logic)
-    for prefix in ["/app/", "app/", "./", "../"]:
-        if target_rel.startswith(prefix):
-            target_rel = target_rel[len(prefix):]
-    target_rel = target_rel.lstrip("/")
-
-    if not target_rel:
-        print("[ERRO] Sully falhou em identificar o arquivo.")
-        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-        return False
-
     target_abs = os.path.join(repo_path, target_rel)
-    if not os.path.isfile(target_abs):
-        fallback_chain = list(dict.fromkeys(ast_candidates + emb_candidates))
-        for cand in fallback_chain:
-            if cand == target_rel:
+    if not os.path.isfile(target_abs) or is_test_path(target_rel):
+        for cand in production_candidates:
+            if cand == target_rel or is_test_path(cand):
                 continue
             cand_abs = os.path.join(repo_path, cand)
             if os.path.isfile(cand_abs):
-                print(f"[HYBRID] Caminho de Sully inexistente ({target_rel}); usando candidato {cand}")
+                print(f"[HYBRID] Caminho ({target_rel}) inexistente/inválido; usando candidato {cand}")
                 target_rel, target_abs = cand, cand_abs
                 break
-    if not os.path.isfile(target_abs):
-        print(f"[ERRO] Arquivo alvo inexistente após fallback: {target_rel}")
+
+    if not os.path.isfile(target_abs) or is_test_path(target_rel):
+        print(f"[ERRO] Arquivo alvo inexistente ou inválido após fallback: {target_rel}")
         os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
         return False
 
@@ -725,6 +856,25 @@ REPLACE:
 
     previous_error = ""
     for attempt in range(1, MAX_RETRIES + 2):
+        # Tarefa 2: Rollback Atômico Determinístico no início de cada tentativa se a anterior falhou
+        if attempt > 1:
+            print(f"[ATOMIC ROLLBACK] Executando rollback_file antes da tentativa {attempt}...")
+            rollback_file(repo_path, target_abs)
+            
+            # Validação com git status no repositório temporário
+            status_res = subprocess.run(
+                ["git", "-C", repo_path, "status", "--porcelain", "--", target_rel],
+                capture_output=True,
+                text=True
+            )
+            if status_res.stdout.strip():
+                print(f"[ROLLBACK WARN] Git status não limpo para {target_rel}: {status_res.stdout.strip()}. Forçando checkout.")
+                subprocess.run(["git", "-C", repo_path, "checkout", "-f", "--", target_rel], check=True)
+            else:
+                print(f"[ROLLBACK OK] Repositório verificado: {target_rel} está no estado limpo e estável.")
+
+            current_content = read_file(target_abs)
+
         # Escalada progressiva (centrada na linha/função — v4.3.0)
         code_context = get_context_for_attempt(current_content, function_name, line_hint, attempt)
 
@@ -757,18 +907,16 @@ REPLACE:
         )
         print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES + 1} — {ctx_mode}...")
 
-        # Restaura arquivo antes de cada retry
-        if attempt > 1:
-            subprocess.run(["git", "-C", repo_path, "checkout", "--", target_rel], check=False)
-            current_content = read_file(target_abs)
-
         codey_response = prompt_agent(codey_prompt, user_msg)
-        patch_applied, err_msg = apply_codey_patch(codey_response, target_abs)
+        # Tarefa 3: Hardened Scalpel (pré-valida AST antes do Docker)
+        patch_applied, err_msg = apply_codey_patch(codey_response, target_abs, repo_path=repo_path)
 
         if not patch_applied:
             previous_error = f"Patch failed: {err_msg}"
             state["errors"].append({"attempt": attempt, "error": previous_error})
             save_state(instance_id, state)
+            # Tarefa 2: Rollback imediato se o patch falhar
+            rollback_file(repo_path, target_abs)
             continue
 
         # Testa no Docker — Vera usa exit code do processo (pytest / Django runtests / bin/test)
@@ -786,7 +934,7 @@ REPLACE:
         else:
             previous_error = extract_test_failure(post_results)
             state["errors"].append({"attempt": attempt, "error": previous_error[:300]})
-            # Auto-Rollback v4.3.5 (Reset após falha nos testes)
+            # Tarefa 2: Auto-Rollback Determinístico após falha nos testes
             rollback_file(repo_path, target_abs)
             save_state(instance_id, state)
             print(f"[VERA] Tentativa {attempt} falhou. {'Próxima...' if attempt <= MAX_RETRIES else 'Esgotadas.'}")
@@ -797,7 +945,7 @@ REPLACE:
 
 # ====================== ENTRY POINT ======================
 if __name__ == "__main__":
-    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_300.json")
+    sample_file = os.environ.get("LIARA_SAMPLE", "data/swebench_sample_50.json")
     with open(sample_file, "r") as f:
         issues = json.load(f)
     print(f"=== LIARA: SCIENTIFIC REPAIR v{VERSION} (Hybrid Intelligence) ===")
