@@ -1,0 +1,35 @@
+# Dockerfile.liara — Imagem de sandbox completa para benchmark LIARA
+# Build: docker build -t liara-sandbox:3.9 -f Dockerfile.liara .
+FROM python:3.9-bullseye
+
+# Ferramentas de compilação e bibliotecas de sistema necessárias
+# para C extensions de projetos Python do SWE-bench
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    gfortran \
+    git \
+    libpq-dev \
+    default-libmysqlclient-dev \
+    libsqlite3-dev \
+    libopenblas-dev \
+    liblapack-dev \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pip atualizado e dependências comuns de teste/benchmark
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir \
+    pytest \
+    pytest-django \
+    pytest-mock \
+    pytest-xdist \
+    tox \
+    numpy \
+    scipy \
+    psycopg2-binary \
+    mysqlclient \
+    hypothesis

@@ -68,10 +68,9 @@ def prompt_agent(role_prompt, user_content):
         "stream": False,
     }
     opts = {}
-    if os.environ.get("LIARA_NUM_PREDICT"):
-        opts["num_predict"] = int(os.environ["LIARA_NUM_PREDICT"])
-    if os.environ.get("LIARA_NUM_CTX"):
-        opts["num_ctx"] = int(os.environ["LIARA_NUM_CTX"])
+    # LIARA v4.6: Defaults seguros — evita truncamento por contexto curto
+    opts["num_predict"] = int(os.environ.get("LIARA_NUM_PREDICT", "2048"))
+    opts["num_ctx"] = int(os.environ.get("LIARA_NUM_CTX", "16384"))
     if opts:
         data["options"] = opts
     req = urllib.request.Request(
@@ -302,45 +301,51 @@ def clean_block_fences(block_text):
 def apply_codey_patch(codey_response, target_abs, repo_path=None):
     """Extrai, aplica e pré-valida sintaticamente o patch SEARCH/REPLACE (The Scalpel)."""
     clean_resp = codey_response.replace("\r\n", "\n").replace("\r", "\n")
-    parts = re.split(r"(?:^|\n)\s*(?:```[a-zA-Z]*\n)?\s*(?:\*{0,2}SEARCH\*{0,2}:|SEARCH:)", clean_resp)
-    if len(parts) < 2:
-        parts = re.split(r"SEARCH:", clean_resp)
 
+    # LIARA v4.6: Normaliza variantes comuns de delimitadores antes do parsing
+    # O modelo às vezes gera "REPLACE WITH:" em vez de "REPLACE:"
+    clean_resp = re.sub(r'REPLACE\s+WITH\s*:', 'REPLACE:', clean_resp, flags=re.IGNORECASE)
+    # Normaliza **SEARCH**: ou *SEARCH*: para SEARCH:
+    clean_resp = re.sub(r'\*{1,2}(SEARCH|REPLACE)\*{1,2}\s*:', r'\1:', clean_resp)
+
+    parts = re.split(r"(?:^|\n)\s*(?:```[a-zA-Z]*\n)?\s*SEARCH:", clean_resp)
     if len(parts) < 2:
         return False, "SEARCH/REPLACE block not found or malformed (missing SEARCH:)."
 
-    search_rest = parts[1]
-    replace_parts = re.split(r"(?:^|\n)\s*(?:\*{0,2}REPLACE\*{0,2}:|REPLACE:)", search_rest)
-    if len(replace_parts) < 2:
-        replace_parts = re.split(r"REPLACE:", search_rest)
+    # LIARA v4.6: Se há múltiplos blocos SEARCH:, usa o primeiro válido
+    results = []
+    for block_idx, search_rest in enumerate(parts[1:], 1):
+        replace_parts = re.split(r"(?:^|\n)\s*REPLACE:", search_rest)
+        if len(replace_parts) < 2:
+            continue
 
-    if len(replace_parts) < 2:
-        return False, "SEARCH/REPLACE block not found or malformed (missing REPLACE:)."
+        old_str = clean_block_fences(replace_parts[0])
+        raw_replace = replace_parts[1].split("SEARCH:")[0]
+        new_str = clean_block_fences(raw_replace)
 
-    old_str = clean_block_fences(replace_parts[0])
-    raw_replace = replace_parts[1].split("SEARCH:")[0]
-    new_str = clean_block_fences(raw_replace)
+        if not old_str.strip():
+            continue
 
-    result = fuzzy_apply_edit(target_abs, old_str, new_str)
-    print(f"[CODEY] {result}")
-    if "SUCCESS" not in result.upper():
-        if repo_path:
-            rollback_file(repo_path, target_abs)
-        return False, result
+        result = fuzzy_apply_edit(target_abs, old_str, new_str)
+        print(f"[CODEY] Bloco {block_idx}: {result}")
+        if "SUCCESS" in result.upper():
+            ok, err = validate_patch_syntax(target_abs)
+            if ok:
+                print(f"[VALIDA] ✓ Sintaxe OK (bloco {block_idx})")
+                return True, ""
+            else:
+                print(f"[VALIDA] ✗ Bloco {block_idx} gerou sintaxe inválida: {err}. Tentando próximo bloco...")
+                if repo_path:
+                    rollback_file(repo_path, target_abs)
+                results.append((False, err))
+                continue
+        results.append((False, result))
 
-    ok, err = validate_patch_syntax(target_abs)
-    if not ok:
-        print(f"[VALIDA] ✗ Sintaxe inválida no arquivo — {err}. Descartando e resetando.")
-        if repo_path:
-            rollback_file(repo_path, target_abs)
-        else:
-            repo_parts = target_abs.split("/repos/")
-            if len(repo_parts) > 1:
-                derived_repo = repo_parts[0] + "/repos/" + repo_parts[1].split("/")[0]
-                rollback_file(derived_repo, target_abs)
-        return False, err
-    print(f"[VALIDA] ✓ Sintaxe OK")
-    return True, ""
+    # Nenhum bloco funcionou
+    if repo_path:
+        rollback_file(repo_path, target_abs)
+    error_summary = "; ".join(r[1] for r in results) if results else "Nenhum bloco SEARCH/REPLACE válido encontrado."
+    return False, f"Patch format invalid: {error_summary}"
 
 # ====================== STATE MANAGEMENT ======================
 def state_path(instance_id):
@@ -639,11 +644,11 @@ def run_swe_benchmark_loop(issue_data):
     os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
     subprocess.run(["docker", "run", "-d", "--name", container_name,
                     "-v", f"{repo_path}:/app", "-w", "/app",
-                    "python:3.9-slim", "tail", "-f", "/dev/null"], check=True)
-    # LIARA v4.1: Instalação robusta de dependências
-    print("[SETUP] Instalando dependências de projeto e teste...")
-    run_in_docker(container_name, "pip install -e . -q")
-    run_in_docker(container_name, "pip install pytest pytest-django pytest-mock tox -q")
+                    "liara-sandbox:3.9", "tail", "-f", "/dev/null"], check=True)
+    # LIARA v4.6: Output verboso para diagnosticar falhas de instalação
+    install_result = run_in_docker(container_name, "pip install -e . 2>&1 | tail -n 30")
+    print(f"[SETUP] pip install -e . resultado: {install_result[:500]}")
+    run_in_docker(container_name, "pip install pytest pytest-django pytest-mock tox 2>&1 | tail -n 10")
 
     # === FASE 0: Análise AST local (ANTES de qualquer LLM) ===
     print("[AST] Mapeando repositório...")
@@ -656,7 +661,53 @@ def run_swe_benchmark_loop(issue_data):
     bug_detected = (not pre_ok) or any(
         t in pre_results.lower() for t in ("failed", "traceback", "assertionerror", "errors=")
     )
-    print(f"[REPRO] {'BUG DETECTADO ✓' if bug_detected else 'PASSOU (inesperado)'}")
+
+    # === LIARA v4.6: Guarda contra Feedback Poisoning (Env-Guard) ===
+    # Detecta se o teste falhou por erro de AMBIENTE (dependência faltante)
+    # e não pelo bug real da issue. Se sim, tenta instalar e re-rodar.
+    ENV_ERROR_PATTERNS = [
+        (r"ModuleNotFoundError: No module named '([^']+)'", "ModuleNotFoundError"),
+        (r"ImportError: No module named '([^']+)'", "ImportError"),
+        (r"ImportError: cannot import name '([^']+)'", "ImportError"),
+    ]
+
+    max_env_fixes = 3  # Limite de auto-fix para evitar loop infinito
+    for env_fix_attempt in range(max_env_fixes):
+        env_error_found = False
+        for pattern, err_type in ENV_ERROR_PATTERNS:
+            match = re.search(pattern, pre_results)
+            if match:
+                missing_mod = match.group(1).split('.')[0]  # Pega módulo raiz
+                print(f"[ENV-GUARD] {err_type} detectado: '{missing_mod}' — "
+                      f"Isso é erro de AMBIENTE, não o bug da issue. "
+                      f"Tentando auto-fix ({env_fix_attempt + 1}/{max_env_fixes})...")
+                log_dialogue("ENV-GUARD", f"Auto-instalando módulo faltante: {missing_mod}")
+                run_in_docker(container_name, f"pip install {missing_mod} 2>&1 | tail -5")
+                # Re-executa o teste
+                pre_ok, pre_results = run_in_docker(container_name, test_script, return_exit_code=True)
+                env_error_found = True
+                break  # Reinicia o loop for para checar novos erros
+        if not env_error_found:
+            break  # Nenhum erro de ambiente restante
+
+    # Recalcula bug_detected após possíveis auto-fixes de ambiente
+    bug_detected = (not pre_ok) or any(
+        t in pre_results.lower() for t in ("failed", "traceback", "assertionerror", "errors=")
+    )
+
+    # Se AINDA houver ModuleNotFoundError após auto-fix, abortar a issue
+    if re.search(r"ModuleNotFoundError|ImportError", pre_results):
+        remaining = re.findall(r"No module named '([^']+)'", pre_results)
+        if remaining:
+            print(f"[ENV-GUARD] ⚠ Dependência irrecuperável: {remaining}. "
+                  f"Abortando issue para evitar Feedback Poisoning.")
+            log_dialogue("ENV-GUARD", f"Issue abortada: dependência {remaining} não instalável.")
+            state["errors"].append({"attempt": 0, "error": f"Env dependency failure: {remaining}"})
+            save_state(instance_id, state)
+            os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+            return False
+
+    print(f"[REPRO] {'BUG DETECTADO ✓' if bug_detected else 'PASSOU (inesperado)'} (pós env-guard)")
 
     # Análise determinística do erro
     error_hint = classify_error(pre_results)
@@ -837,22 +888,34 @@ RULES:
     # === FASE 3: Loop Codey + Vera (escalada progressiva de contexto) ===
     # LIARA v4.1: FEW-SHOT PROMPTING
     codey_prompt = """You are Codey, a code editor. Your ONLY job is to output a SEARCH/REPLACE block.
-Do NOT explain. Do NOT chatter.
-Do NOT perform cosmetic cleanups or unrelated refactors.
+Do NOT explain. Do NOT chatter. Do NOT add markdown outside the block.
 
-Rules:
-1. The SEARCH block MUST match the provided code EXACTLY (same leading spaces on every line as in the Code section).
-2. SEARCH must cover complete statements: if you include a line with "if/for/while/try:", you MUST include the whole body you intend to change through its dedented end (never stop SEARCH mid-block).
-3. ONLY fix the bug implied by the problem statement and test failure; avoid unrelated refactors or comment-only edits unless they are required for correctness.
-4. If you cannot find the bug in the provided context, output 'ERROR: Bug not found in context'.
-5. Do not truncate the REPLACE block; finish every string, bracket, and line you opened.
-6. Every non-empty SEARCH line must match the file with the SAME leading whitespace as in the Code section; otherwise the patch is rejected.
+ABSOLUTE RULES:
+1. The SEARCH block MUST match the provided code EXACTLY (same leading spaces on every line).
+2. SEARCH must cover complete statements: if you include "if/for/while/try:", include the full body.
+3. ONLY fix the bug implied by the problem statement and test failure.
+4. NEVER use '...' or placeholder comments to skip code. Write out ALL lines completely.
+5. NEVER use 'REPLACE WITH:'. The correct keyword is 'REPLACE:'.
+6. Output exactly ONE SEARCH and ONE REPLACE pair per response.
+7. If you cannot find the bug, output 'ERROR: Bug not found in context'.
+8. Finish every string, bracket, and line you opened. Never truncate.
+9. Preserve ALL existing indentation from the Code section.
 
-EXACT FORMAT:
+CORRECT FORMAT EXAMPLE:
 SEARCH:
-<exact code lines>
+    def calculate(x):
+        return x + 1
 REPLACE:
-<new code lines>"""
+    def calculate(x):
+        if x is None:
+            return 0
+        return x + 1
+
+WRONG (will be REJECTED):
+- Using 'REPLACE WITH:' instead of 'REPLACE:'
+- Using '...' to skip lines
+- Multiple SEARCH/REPLACE blocks
+- Changing indentation"""
 
     previous_error = ""
     for attempt in range(1, MAX_RETRIES + 2):
