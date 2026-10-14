@@ -1,0 +1,29 @@
+[
+  {
+    "instance_id": "sympy__sympy-19954",
+    "repo": "sympy/sympy",
+    "base_commit": "6f54459aa0248bf1467ad12ee6333d8bc924a642",
+    "version": "1.7",
+    "problem_statement": "sylow_subgroup() IndexError \nI use sympy 1.6.1, with numpy 1.18.5, scipy 1.4.1, under Python '3.8.5 (default, Aug  5 2020, 09:44:06) [MSC v.1916 64 bit (AMD64)]'. \r\n\r\nThe code that I run as the following gives IndexError for sylow_subgroup():\r\n\r\nfrom sympy.combinatorics import DihedralGroup, PermutationGroup, Permutation\r\n\r\nG = DihedralGroup(18)\r\n\r\nS2 = G.sylow_subgroup(p=2)\r\n \r\nTraceback (most recent call last):\r\n  File \"<input>\", line 7, in <module>\r\n  File \"D:\\anaconda38\\envs\\default\\lib\\site-packages\\sympy\\combinatorics\\perm_groups.py\", line 4370, in sylow_subgroup\r\n    blocks = self.minimal_blocks()\r\n  File \"D:\\anaconda38\\envs\\default\\lib\\site-packages\\sympy\\combinatorics\\perm_groups.py\", line 2207, in minimal_blocks\r\n    del num_blocks[i], blocks[i]\r\nIndexError: list assignment index out of range\r\n\r\nThe same error shows up as well when I set: \r\nG = DihedralGroup(2*25)\r\n\r\nS2 = G.sylow_subgroup(p=2)\r\n",
+    "test_patch": "diff --git a/sympy/combinatorics/tests/test_perm_groups.py b/sympy/combinatorics/tests/test_perm_groups.py\n--- a/sympy/combinatorics/tests/test_perm_groups.py\n+++ b/sympy/combinatorics/tests/test_perm_groups.py\n@@ -905,6 +905,14 @@ def test_sylow_subgroup():\n     assert G.order() % S.order() == 0\n     assert G.order()/S.order() % 2 > 0\n \n+    G = DihedralGroup(18)\n+    S = G.sylow_subgroup(p=2)\n+    assert S.order() == 4\n+\n+    G = DihedralGroup(50)\n+    S = G.sylow_subgroup(p=2)\n+    assert S.order() == 4\n+\n \n @slow\n def test_presentation():\n",
+    "test": "python3 bin/test sympy/combinatorics/tests/test_perm_groups.py"
+  },
+  {
+    "instance_id": "django__django-11099",
+    "repo": "django/django",
+    "base_commit": "e812d12643a53d1685a2107ff03a5585093eef12",
+    "version": "3.0",
+    "problem_statement": "UsernameValidator allows trailing newline in usernames.\nDescription\n\nASCIIUsernameValidator and UnicodeUsernameValidator use the regex r'^[\\w.@+-]+$'.\nIn Python regex,$ matches the end of the string or just before the newline at the end of the string.\nTherefore, a username ending with a newline character passes validation.\nChanging the regex to r'^[\\w.@+-]+\\Z' fixes this issue.\n",
+    "test_patch": "diff --git a/tests/validators/tests.py b/tests/validators/tests.py\n--- a/tests/validators/tests.py\n+++ b/tests/validators/tests.py\n@@ -382,14 +382,14 @@\n     (ASCIIUsernameValidator(), 'valid.username', None),\n     (ASCIIUsernameValidator(), 'valid@username', None),\n     (ASCIIUsernameValidator(), 'valid+username', None),\n-    (ASCIIUsernameValidator(), 'invalid username', ValidationError),\n-    (ASCIIUsernameValidator(), 'invalid#username', ValidationError),\n-    (ASCIIUsernameValidator(), 'o\u0301validusername', ValidationError),\n+    (ASCIIUsernameValidator(), 'invalid username\\n', ValidationError),\n+    (ASCIIUsernameValidator(), 'invalid#username\\n', ValidationError),\n+    (ASCIIUsernameValidator(), 'o\u0301validusername\\n', ValidationError),\n     (UnicodeUsernameValidator(), 'valid.username', None),\n     (UnicodeUsernameValidator(), 'valid@username', None),\n     (UnicodeUsernameValidator(), 'valid+username', None),\n     (UnicodeUsernameValidator(), 'o\u0301validusername', None),\n-    (UnicodeUsernameValidator(), 'invalid username', ValidationError),\n-    (UnicodeUsernameValidator(), 'invalid#username', ValidationError),\n+    (UnicodeUsernameValidator(), 'invalid username\\n', ValidationError),\n+    (UnicodeUsernameValidator(), 'invalid#username\\n', ValidationError),\n )\n",
+    "test": "python3 ./tests/runtests.py --settings=test_sqlite validators.tests"
+  },
+  {
+    "instance_id": "astropy__astropy-14995",
+    "repo": "astropy/astropy",
+    "base_commit": "81f18fb5f0e9e4215286522c092a7e780d603a15",
+    "version": "5.3",
+    "problem_statement": "InNDDataRef mask propagation fails when operand.mask is None\n### Description\nWhen performing bitwise operations (like `or`) on `NDDataRef` objects with masks, if one operand has `mask=None`, an exception is thrown instead of gracefully handling the `None` mask.\n\n### Expected Behavior\nIf `operand.mask` is `None`, the operation should fall back to using the mask of the other operand without raising an AttributeError.\n",
+    "test_patch": "diff --git a/astropy/nddata/tests/test_nddata.py b/astropy/nddata/tests/test_nddata.py\n--- a/astropy/nddata/tests/test_nddata.py\n+++ b/astropy/nddata/tests/test_nddata.py\n@@ -450,6 +450,11 @@ def test_mask_propagation():\n     ndd1 = NDDataRef([1, 2], mask=np.array([True, False]))\n     ndd2 = NDDataRef([3, 4], mask=None)\n     res = ndd1.add(ndd2, handle_mask=np.bitwise_or)\n+    assert np.all(res.mask == np.array([True, False]))\n",
+    "test": "pytest astropy/nddata/tests/test_nddata.py"
+  }
+]
