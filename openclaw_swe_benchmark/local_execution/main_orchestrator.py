@@ -24,7 +24,7 @@ LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 # LIARA v4.4.1 — núcleo benchmark-agnóstico: localização híbrida + contexto AST + patch + testes.
 # Extensões por domínio: prefira acrescentar entradas em ERROR_PATTERNS / EXPERT_HINTS (dados),
 # ou variáveis de ambiente, em vez de lógica ad-hoc no loop principal.
-VERSION = "4.5.0"
+VERSION = "4.7.0"
 
 # Prefixo estável no prompt: detecta modo de contexto sem acoplar a texto natural de um benchmark.
 AST_CONTEXT_MARKER = "# LIARA:AST_FUNCTION_SCOPE\n"
@@ -478,6 +478,41 @@ def extract_test_failure(test_output, max_lines=72):
             break
     return "\n".join(failure_lines) if failure_lines else test_output[:2000]
 
+# ====================== TRACEBACK FILE-AWARE LOCALIZATION ======================
+def _extract_line_hint_for_file(traceback_text, target_rel):
+    """
+    LIARA v4.7: Extrai a linha mais interna do traceback que pertence ao arquivo alvo.
+
+    Evita o problema de usar a linha de um frame de outro arquivo (ex: expr.py:406
+    quando o bug é em fu.py), que causa resolve_innermost_function_at_line a retornar
+    a função errada no arquivo alvo.
+
+    Retorna int (1-based) ou None se não encontrar.
+    """
+    frame_pattern = re.compile(r'File "([^"]+\.py)", line (\d+)')
+    frames = frame_pattern.findall(traceback_text or "")
+
+    # Normaliza o target_rel para comparação (remove prefixos Docker e ./\)
+    norm_target = target_rel.replace("\\", "/").lstrip("./")
+
+    # Encontra o último frame cujo caminho de arquivo termina com target_rel
+    best_line = None
+    for fpath, lineno in frames:
+        norm_frame = fpath.replace("\\", "/")
+        for prefix in ["/app/", "app/"]:
+            if norm_frame.startswith(prefix):
+                norm_frame = norm_frame[len(prefix):]
+                break
+        norm_frame = norm_frame.lstrip("./")
+
+        if norm_frame == norm_target or norm_frame.endswith("/" + norm_target):
+            best_line = int(lineno)  # sobrescreve: queremos o frame MAIS INTERNO (último match)
+
+    # Retorna int se o arquivo estava no traceback, ou None se não foi encontrado no traceback
+    # (Evita usar uma linha de outro arquivo, que causava contaminação de contexto AST e janelas vazias)
+    return best_line
+
+
 # ====================== AST ANALYSIS ======================
 def build_ast_map(repo_path):
     """Mapeia function_name → [(arquivo_relativo, lineno)] para todos os .py do repo."""
@@ -505,22 +540,46 @@ def localize_from_traceback(test_output, func_map, repo_path):
     file_hints  = re.findall(r'File "([^"]+\.py)"', test_output)
     candidates  = []
 
+    # LIARA v4.7: Funções de harness de test runner — pertencem à infraestrutura de testes,
+    # não ao código de produção da issue. Filtrar para evitar que Sully foque nelas.
+    HARNESS_FUNCTIONS = frozenset({
+        'build_suite', 'run_tests', 'load_tests_for_label', 'django_tests',
+        'addTests', 'runTests', 'run', 'discover', '_makeResult',
+        'addTest', 'runTest', 'main',
+    })
+
+    # LIARA v4.7: Prefixos que indicam stdlib ou dependências externas — nunca são código do repo
+    EXTERNAL_PATH_PREFIXES = (
+        "/usr/local/lib/",
+        "/usr/lib/",
+        "/opt/",
+        "site-packages/",
+    )
+
     for fn in func_names:
+        if fn in HARNESS_FUNCTIONS:
+            continue  # Skip harness-level functions
         if fn in func_map:
             for (rel, _) in func_map[fn]:
                 if not is_test_path(rel) and rel not in candidates:
                     candidates.append(rel)
 
     for fh in file_hints:
+        # LIARA v4.7: Descarta caminhos de stdlib, site-packages e dependências externas
+        if any(fh.startswith(prefix) for prefix in EXTERNAL_PATH_PREFIXES):
+            continue
+        # Descarta caminhos absolutos que não começam com /app/ (Docker) — são externos ao repo
+        if os.path.isabs(fh) and not fh.startswith("/app/"):
+            continue
         # LIARA v4.2.3: Limpeza de caminhos de traceback (Docker -> Host)
         clean_fh = fh
         for prefix in ["/app/", "app/"]:
             if clean_fh.startswith(prefix):
                 clean_fh = clean_fh[len(prefix):]
                 break
-        
+
         rel = clean_fh if not os.path.isabs(clean_fh) else os.path.relpath(clean_fh, repo_path)
-        
+
         if not is_test_path(rel) and rel not in candidates:
             candidates.append(rel)
 
@@ -630,6 +689,19 @@ def run_swe_benchmark_loop(issue_data):
     test_script = issue_data['test']
     test_patch  = issue_data['test_patch']
 
+    # LIARA v4.7: Normaliza comando de teste do Django (runtests.py não aceita arquivos .py diretos)
+    # Evita RuntimeError: 'One of the test labels is a path to a file: ... Use a dotted module name or path to a directory instead.'
+    if "runtests.py" in test_script:
+        parts = test_script.split()
+        norm_parts = []
+        for p in parts:
+            if p.endswith(".py") and not p.endswith("runtests.py"):
+                p_dir = os.path.dirname(p)
+                norm_parts.append(p_dir if p_dir else p)
+            else:
+                norm_parts.append(p)
+        test_script = " ".join(norm_parts)
+
     print(f"\n[LIARA v{VERSION}] {instance_id}")
     state = load_state(instance_id)
 
@@ -736,6 +808,8 @@ def run_swe_benchmark_loop(issue_data):
 
     # Combina candidatos (traceback first, embedding second - 100% filtrados contra testes)
     all_candidates = filter_production_files(list(dict.fromkeys(ast_candidates + emb_candidates)))
+    # LIARA v4.7: Garante que todos os candidatos existem fisicamente no repo (exclui stdlib/externos)
+    all_candidates = [c for c in all_candidates if os.path.isfile(os.path.join(repo_path, c))]
 
     # === FASE 2: Sully — Identificação do Arquivo e Função ===
     # Tarefa 1: Blindagem Anti-Leakage do Sully (Fase 1.1)
@@ -752,6 +826,24 @@ def run_swe_benchmark_loop(issue_data):
     repro_traceback = extract_test_failure(pre_results)
     if repro_traceback:
         sully_context += f"Test Failure Traceback:\n{repro_traceback}\n\n"
+
+    # LIARA v4.7: Detecta harness complexo (Django/pytest que falha na infra de runner)
+    # Se o traceback indica erro de configuração do runner, instrui Sully a ignorá-lo
+    # e focar exclusivamente no Bug Report para localizar o arquivo correto.
+    HARNESS_MARKERS = [
+        "runtests.py", "unittest/suite.py", "conftest.py",
+        "RuntimeError: One of the test labels",
+        "load_tests_for_label", "build_suite",
+    ]
+    traceback_is_harness = any(m in (repro_traceback or "") for m in HARNESS_MARKERS)
+    if traceback_is_harness:
+        sully_context += (
+            "NOTE: The traceback above is a TEST HARNESS configuration error — it does NOT "
+            "show the production bug location. The real bug is described entirely in the "
+            "'Bug Report' section above. Ignore all traceback function names. Focus on the "
+            "Bug Report text to identify the correct production file and function from the "
+            "candidates list below.\n\n"
+        )
     
     sully_context += f"Analyzed Bug Pattern: {error_hint}\n\n"
     sully_context += "Top relevant files identified by static analysis (PRODUCTION ONLY):\n"
@@ -827,7 +919,10 @@ RULES:
             print(f"[SULLY] Resposta inválida na tentativa {sully_attempt}/{sully_retries}.")
 
     # Tarefa 1: Fallback determinístico para o candidato de produção do AST se Sully falhou ou escolheu teste
-    production_candidates = filter_production_files(ast_candidates + emb_candidates)
+    production_candidates = [
+        c for c in filter_production_files(list(dict.fromkeys(ast_candidates + emb_candidates)))
+        if os.path.isfile(os.path.join(repo_path, c))
+    ]
     if not target_rel or is_test_path(target_rel):
         print("[ANTI-LEAKAGE] Sully não forneceu arquivo de produção válido. Ativando fallback determinístico do AST.")
         if production_candidates:
@@ -857,9 +952,10 @@ RULES:
         os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
         return False
 
-    # LIARA v4.3.0: linha do traceback (última ", line N" → frame mais interno na prática)
-    line_hints = re.findall(r', line (\d+)', pre_results)
-    line_hint  = int(line_hints[-1]) if line_hints else None
+    # LIARA v4.7: linha do traceback — usa o frame MAIS INTERNO que pertence ao arquivo alvo.
+    # Evita usar uma linha de outro arquivo (ex: expr.py:406 quando o bug é em fu.py),
+    # o que causaria resolve_innermost_function_at_line retornar a função errada.
+    line_hint = _extract_line_hint_for_file(pre_results, target_rel)
 
     if not function_name and func_hints:
         function_name = func_hints[-1]
@@ -918,89 +1014,155 @@ WRONG (will be REJECTED):
 - Changing indentation"""
 
     previous_error = ""
-    for attempt in range(1, MAX_RETRIES + 2):
-        # Tarefa 2: Rollback Atômico Determinístico no início de cada tentativa se a anterior falhou
-        if attempt > 1:
-            print(f"[ATOMIC ROLLBACK] Executando rollback_file antes da tentativa {attempt}...")
-            rollback_file(repo_path, target_abs)
-            
-            # Validação com git status no repositório temporário
-            status_res = subprocess.run(
-                ["git", "-C", repo_path, "status", "--porcelain", "--", target_rel],
-                capture_output=True,
-                text=True
-            )
-            if status_res.stdout.strip():
-                print(f"[ROLLBACK WARN] Git status não limpo para {target_rel}: {status_res.stdout.strip()}. Forçando checkout.")
-                subprocess.run(["git", "-C", repo_path, "checkout", "-f", "--", target_rel], check=True)
+    # LIARA v4.7: File-level backtrack — se Codey nunca aplicar nenhum patch num arquivo,
+    # tenta o próximo candidato de produção em vez de desistir da issue.
+    MAX_FILE_ATTEMPTS = 2
+    tried_files = [target_rel]
+
+    for file_attempt in range(MAX_FILE_ATTEMPTS):
+        current_content = read_file(target_abs)
+        previous_error = ""
+        patch_ever_applied = False  # rastreia se ao menos 1 patch tocou o arquivo neste ciclo
+
+        for attempt in range(1, MAX_RETRIES + 2):
+            # Tarefa 2: Rollback Atômico Determinístico no início de cada tentativa se a anterior falhou
+            if attempt > 1:
+                print(f"[ATOMIC ROLLBACK] Executando rollback_file antes da tentativa {attempt}...")
+                rollback_file(repo_path, target_abs)
+                
+                # Validação com git status no repositório temporário
+                status_res = subprocess.run(
+                    ["git", "-C", repo_path, "status", "--porcelain", "--", target_rel],
+                    capture_output=True,
+                    text=True
+                )
+                if status_res.stdout.strip():
+                    print(f"[ROLLBACK WARN] Git status não limpo para {target_rel}: {status_res.stdout.strip()}. Forçando checkout.")
+                    subprocess.run(["git", "-C", repo_path, "checkout", "-f", "--", target_rel], check=True)
+                else:
+                    print(f"[ROLLBACK OK] Repositório verificado: {target_rel} está no estado limpo e estável.")
+
+                current_content = read_file(target_abs)
+
+            # Escalada progressiva (centrada na linha/função — v4.3.0)
+            code_context = get_context_for_attempt(current_content, function_name, line_hint, attempt)
+
+            if attempt == 1:
+                user_msg = (
+                    f"File: {target_rel}\n\nSully's Plan:\n{architect_plan}\n\n"
+                    f"Code section:\n{code_context}"
+                )
             else:
-                print(f"[ROLLBACK OK] Repositório verificado: {target_rel} está no estado limpo e estável.")
+                user_msg = (
+                    f"File: {target_rel}\n\nPrevious fix FAILED. Test error:\n{previous_error}\n\n"
+                    f"Original plan:\n{architect_plan}\n\n"
+                    f"Code section (retry {attempt}):\n{code_context}\n\nTry a different fix consistent with the failure output."
+                )
 
-            current_content = read_file(target_abs)
+            # LIARA v4.7: Extrai indentação âncora do contexto e injeta no prompt para prevenir
+            # que o modelo SLM "normalize" indevidamente a indentação de funções aninhadas
+            # (ex: _f dentro de _TR56 tem 8 espaços, mas o modelo gera SEARCH com 4).
+            anchor_indent = 0
+            for _ctx_line in code_context.split('\n'):
+                if _ctx_line.strip() and not _ctx_line.strip().startswith('#'):
+                    anchor_indent = len(_ctx_line) - len(_ctx_line.lstrip())
+                    break
+            if anchor_indent > 0:
+                user_msg += (
+                    f"\n\nINDENTATION ALERT: The code section above uses {anchor_indent} space(s) "
+                    f"of base indentation on its first non-blank, non-comment line. Your SEARCH "
+                    f"block MUST start with exactly {anchor_indent} spaces on the first line. "
+                    f"DO NOT reduce or remove any indentation."
+                )
 
-        # Escalada progressiva (centrada na linha/função — v4.3.0)
-        code_context = get_context_for_attempt(current_content, function_name, line_hint, attempt)
+            if error_hint:
+                user_msg += f"\n\nHint: {error_hint}"
 
-        if attempt == 1:
-            user_msg = (
-                f"File: {target_rel}\n\nSully's Plan:\n{architect_plan}\n\n"
-                f"Code section:\n{code_context}"
+            fail_excerpt = extract_test_failure(pre_results)
+            err_basket = (previous_error or "") + "\n" + (error_hint or "") + "\n" + fail_excerpt[:2500]
+            for err_type, expert_tip in EXPERT_HINTS.items():
+                if err_type in err_basket:
+                    user_msg += f"\n\n{expert_tip}"
+                    break
+
+            ctx_mode = (
+                "AST full function"
+                if function_name and code_context.startswith(AST_CONTEXT_MARKER)
+                else f"sliding window (attempt {attempt})"
             )
-        else:
-            user_msg = (
-                f"File: {target_rel}\n\nPrevious fix FAILED. Test error:\n{previous_error}\n\n"
-                f"Original plan:\n{architect_plan}\n\n"
-                f"Code section (retry {attempt}):\n{code_context}\n\nTry a different fix consistent with the failure output."
-            )
+            print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES + 1} — {ctx_mode} — arquivo {file_attempt + 1}/{MAX_FILE_ATTEMPTS}...")
 
-        if error_hint:
-            user_msg += f"\n\nHint: {error_hint}"
+            codey_response = prompt_agent(codey_prompt, user_msg)
+            # Tarefa 3: Hardened Scalpel (pré-valida AST antes do Docker)
+            patch_applied, err_msg = apply_codey_patch(codey_response, target_abs, repo_path=repo_path)
 
-        fail_excerpt = extract_test_failure(pre_results)
-        err_basket = (previous_error or "") + "\n" + (error_hint or "") + "\n" + fail_excerpt[:2500]
-        for err_type, expert_tip in EXPERT_HINTS.items():
-            if err_type in err_basket:
-                user_msg += f"\n\n{expert_tip}"
-                break
+            if not patch_applied:
+                previous_error = f"Patch failed: {err_msg}"
+                state["errors"].append({"attempt": attempt, "error": previous_error})
+                save_state(instance_id, state)
+                # Tarefa 2: Rollback imediato se o patch falhar
+                rollback_file(repo_path, target_abs)
+                continue
 
-        ctx_mode = (
-            "AST full function"
-            if function_name and code_context.startswith(AST_CONTEXT_MARKER)
-            else f"sliding window (attempt {attempt})"
-        )
-        print(f"[CODEY] Tentativa {attempt}/{MAX_RETRIES + 1} — {ctx_mode}...")
+            patch_ever_applied = True  # LIARA v4.7: ao menos um patch foi aplicado
 
-        codey_response = prompt_agent(codey_prompt, user_msg)
-        # Tarefa 3: Hardened Scalpel (pré-valida AST antes do Docker)
-        patch_applied, err_msg = apply_codey_patch(codey_response, target_abs, repo_path=repo_path)
+            # Testa no Docker — Vera usa exit code do processo (pytest / Django runtests / bin/test)
+            post_ok, post_results = run_in_docker(container_name, test_script, return_exit_code=True)
+            passed = post_ok
+            log_dialogue(f"VERA tentativa {attempt} (arquivo {file_attempt + 1})", f"PASSED={passed}\n{post_results[:500]}")
 
-        if not patch_applied:
-            previous_error = f"Patch failed: {err_msg}"
-            state["errors"].append({"attempt": attempt, "error": previous_error})
-            save_state(instance_id, state)
-            # Tarefa 2: Rollback imediato se o patch falhar
-            rollback_file(repo_path, target_abs)
-            continue
+            if passed:
+                print(f"-> [ORDEM] {instance_id} RESOLVIDA na tentativa {attempt}! 🎉")
+                state["resolved"] = True
+                state["attempts"] = attempt
+                save_state(instance_id, state)
+                os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+                return True
+            else:
+                previous_error = extract_test_failure(post_results)
+                state["errors"].append({"attempt": attempt, "error": previous_error[:300]})
+                # Tarefa 2: Auto-Rollback Determinístico após falha nos testes
+                rollback_file(repo_path, target_abs)
+                save_state(instance_id, state)
+                print(f"[VERA] Tentativa {attempt} falhou. {'Próxima...' if attempt <= MAX_RETRIES else 'Esgotadas.'}")
 
-        # Testa no Docker — Vera usa exit code do processo (pytest / Django runtests / bin/test)
-        post_ok, post_results = run_in_docker(container_name, test_script, return_exit_code=True)
-        passed = post_ok
-        log_dialogue(f"VERA tentativa {attempt}", f"PASSED={passed}\n{post_results[:500]}")
+        # LIARA v4.7: Se todas as tentativas falharam no arquivo atual,
+        # tenta um arquivo alternativo da lista de candidatos antes de desistir.
+        if file_attempt < MAX_FILE_ATTEMPTS - 1:
+            next_candidates = [
+                c for c in production_candidates
+                if c not in tried_files and os.path.isfile(os.path.join(repo_path, c))
+            ]
+            if next_candidates:
+                rollback_file(repo_path, target_abs)  # segurança (garante repo limpo)
+                prev_target = target_rel
+                target_rel = next_candidates[0]
+                target_abs = os.path.join(repo_path, target_rel)
+                tried_files.append(target_rel)
+                # Re-inferir function_name e line_hint com AST no novo arquivo alvo
+                new_content = read_file(target_abs)
+                line_hint = _extract_line_hint_for_file(pre_results, target_rel)
+                if line_hint is not None:
+                    ast_fn = resolve_innermost_function_at_line(new_content, line_hint)
+                    if ast_fn:
+                        function_name = ast_fn
+                else:
+                    # Se o novo arquivo não aparece no traceback, busca função suspeita que exista nele
+                    try:
+                        tree = python_ast.parse(new_content)
+                        new_file_fns = {node.name for node in python_ast.walk(tree)
+                                        if isinstance(node, (python_ast.FunctionDef, python_ast.AsyncFunctionDef))}
+                        matched_fn = next((f for f in func_hints if f in new_file_fns), None)
+                        if matched_fn:
+                            function_name = matched_fn
+                    except Exception:
+                        pass
 
-        if passed:
-            print(f"-> [ORDEM] {instance_id} RESOLVIDA na tentativa {attempt}! 🎉")
-            state["resolved"] = True
-            state["attempts"] = attempt
-            save_state(instance_id, state)
-            os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
-            return True
-        else:
-            previous_error = extract_test_failure(post_results)
-            state["errors"].append({"attempt": attempt, "error": previous_error[:300]})
-            # Tarefa 2: Auto-Rollback Determinístico após falha nos testes
-            rollback_file(repo_path, target_abs)
-            save_state(instance_id, state)
-            print(f"[VERA] Tentativa {attempt} falhou. {'Próxima...' if attempt <= MAX_RETRIES else 'Esgotadas.'}")
+                print(f"[BACKTRACK] Tentativas em '{prev_target}' esgotadas. Tentando arquivo alternativo: '{target_rel}' (função: '{function_name}')")
+                log_dialogue("BACKTRACK", f"Reorientando para arquivo: {target_rel} (anterior: {prev_target})")
+                continue  # próxima iteração de file_attempt com novo target
+
+        break  # encerra o loop de file_attempt (sucesso ou candidatos esgotados)
 
     os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
     print(f"-> [ORDEM] {instance_id} REJEITADA após {MAX_RETRIES + 1} tentativas.")
