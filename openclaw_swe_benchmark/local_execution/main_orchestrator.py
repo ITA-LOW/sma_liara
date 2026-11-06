@@ -16,15 +16,15 @@ OLLAMA_URL = "http://localhost:11434/api/chat"
 EMBED_URL  = "http://localhost:11434/api/embeddings"
 MODEL      = os.environ.get("LIARA_MODEL", "llama3.1")
 REPOS_DIR  = "repos"
-MAX_RETRIES = int(os.environ.get("LIARA_RETRIES", "2"))
-MAX_FUNC_CONTEXT_LINES = int(os.environ.get("LIARA_MAX_FUNC_LINES", "420"))
+MAX_RETRIES = int(os.environ.get("LIARA_RETRIES", "4"))  # LIARA v4.8 Fix8: 2→4 retries
+MAX_FUNC_CONTEXT_LINES = int(os.environ.get("LIARA_MAX_FUNC_LINES", "80"))  # LIARA v4.8 Fix2: 420→80 — smaller context prevents "bug not found" on 14b models
 os.makedirs("data", exist_ok=True)
 LOG_FILE = f"data/agent_dialogue_{datetime.now().strftime('%m%d_%H%M')}.txt"
 
-# LIARA v4.4.1 — núcleo benchmark-agnóstico: localização híbrida + contexto AST + patch + testes.
+# LIARA v4.8.0 — núcleo benchmark-agnóstico: localização híbrida + contexto AST + patch + testes.
 # Extensões por domínio: prefira acrescentar entradas em ERROR_PATTERNS / EXPERT_HINTS (dados),
 # ou variáveis de ambiente, em vez de lógica ad-hoc no loop principal.
-VERSION = "4.7.0"
+VERSION = "4.8.0"
 
 # Prefixo estável no prompt: detecta modo de contexto sem acoplar a texto natural de um benchmark.
 AST_CONTEXT_MARKER = "# LIARA:AST_FUNCTION_SCOPE\n"
@@ -51,6 +51,13 @@ EXPERT_HINTS = {
     "UnboundLocalError": "EXPERT TIP: A name is read before assignment on some paths; check branching/loops and that every path defines the variable before use.",
 }
 
+# LIARA v4.8 Fix7: Padrões de erros de extensões C compiladas que não podem ser resolvidas via pip em runtime
+COMPILED_EXTENSION_PATTERNS = [
+    r"sklearn\.__check_build",                            # scikit-learn
+    r"_c_internal_utils",                                 # matplotlib
+    r"cannot import name '__version__' from 'werkzeug'",  # flask/werkzeug
+]
+
 # ====================== LOGGING ======================
 def log_dialogue(role, content):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -68,8 +75,8 @@ def prompt_agent(role_prompt, user_content):
         "stream": False,
     }
     opts = {}
-    # LIARA v4.6: Defaults seguros — evita truncamento por contexto curto
-    opts["num_predict"] = int(os.environ.get("LIARA_NUM_PREDICT", "2048"))
+    # LIARA v4.8 Fix4: Defaults seguros — 4096 evita truncamento por contexto e em SEARCH/REPLACE
+    opts["num_predict"] = int(os.environ.get("LIARA_NUM_PREDICT", "4096"))
     opts["num_ctx"] = int(os.environ.get("LIARA_NUM_CTX", "16384"))
     if opts:
         data["options"] = opts
@@ -528,7 +535,12 @@ def build_ast_map(repo_path):
             if is_test_path(rel):
                 continue
             with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                tree = python_ast.parse(f.read(), filename=fpath)
+                source = f.read()
+            # LIARA v4.8 Fix1: skip files that cannot be parsed (Python 2 syntax, encoding issues, etc.)
+            try:
+                tree = python_ast.parse(source, filename=fpath)
+            except SyntaxError:
+                continue
             for node in python_ast.walk(tree):
                 if isinstance(node, (python_ast.FunctionDef, python_ast.AsyncFunctionDef)):
                     func_map.setdefault(node.name, []).append((rel, node.lineno))
@@ -602,11 +614,24 @@ def find_relevant_files_by_embedding(repo_path, problem_statement, func_map, top
                 continue
             seen.add(rel)
             fpath = os.path.join(repo_path, rel)
-            with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                snippet = f.read(3000)
-            file_emb = get_embedding(snippet)
-            if file_emb:
-                scored.append((cosine_similarity(query_emb, file_emb), rel))
+            # LIARA v4.8 Fix1 & Fix3: wrap in try/except and sample beginning + middle + end
+            try:
+                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                lines = content.splitlines()
+                n = len(lines)
+                sampled = lines[:30]
+                if n > 60:
+                    mid = n // 2
+                    sampled += lines[mid - 15 : mid + 15]
+                if n > 20:
+                    sampled += lines[max(0, n - 20):]
+                snippet = "\n".join(sampled)[:4000]
+                file_emb = get_embedding(snippet)
+                if file_emb:
+                    scored.append((cosine_similarity(query_emb, file_emb), rel))
+            except Exception:
+                continue
 
     scored.sort(reverse=True)
     return [rel for _, rel in scored if not is_test_path(rel)][:top_n]
@@ -734,6 +759,14 @@ def run_swe_benchmark_loop(issue_data):
         t in pre_results.lower() for t in ("failed", "traceback", "assertionerror", "errors=")
     )
 
+    # === LIARA v4.8 Fix7: Detecção Antecipada de Falhas em Extensões C Compiladas ===
+    if any(re.search(p, pre_results) for p in COMPILED_EXTENSION_PATTERNS):
+        print(f"[ENV-GUARD] ⚠ Erro de extensão C compilada detectado — não instalável via pip. Abortando issue para economizar tempo.")
+        state["errors"].append({"attempt": 0, "error": "Compiled C extension not available in Docker image."})
+        save_state(instance_id, state)
+        os.system(f"docker rm -f {container_name} > /dev/null 2>&1")
+        return False
+
     # === LIARA v4.6: Guarda contra Feedback Poisoning (Env-Guard) ===
     # Detecta se o teste falhou por erro de AMBIENTE (dependência faltante)
     # e não pelo bug real da issue. Se sim, tenta instalar e re-rodar.
@@ -849,6 +882,16 @@ def run_swe_benchmark_loop(issue_data):
     sully_context += "Top relevant files identified by static analysis (PRODUCTION ONLY):\n"
     for f in all_candidates:
         sully_context += f"{f}\n"
+
+    # LIARA v4.8 Fix5: Destacar arquivos vistos diretamente no traceback como alta prioridade
+    if ast_candidates:
+        sully_context += (
+            "\n\nHIGH PRIORITY FILES (seen directly in test failure traceback — "
+            "these are the most likely bug locations):\n"
+        )
+        for tf in ast_candidates[:3]:
+            sully_context += f"  *** {tf} ***\n"
+        sully_context += "\n"
 
     # Dicas de funções do traceback (excluindo funções de teste para evitar que o Sully foque em testes)
     raw_func_hints = re.findall(r'in ([a-zA-Z_][a-zA-Z0-9_]+)\s*$', pre_results, re.MULTILINE)
@@ -1007,6 +1050,31 @@ REPLACE:
             return 0
         return x + 1
 
+# LIARA v4.8 Fix9: Additional few-shot examples for Codey
+EXAMPLE 2 (fixing a comparison):
+SEARCH:
+        if (rv.exp < 0) == True:
+            return rv
+REPLACE:
+        if rv.exp.is_negative:
+            return rv
+
+EXAMPLE 3 (adding a None check):
+SEARCH:
+    def get_facecolors(self):
+        return self._facecolors
+REPLACE:
+    def get_facecolors(self):
+        if self._facecolors is None:
+            return []
+        return self._facecolors
+
+EXAMPLE 4 (fixing a string format):
+SEARCH:
+        return '_' + str(index)
+REPLACE:
+        return str(index)
+
 WRONG (will be REJECTED):
 - Using 'REPLACE WITH:' instead of 'REPLACE:'
 - Using '...' to skip lines
@@ -1126,8 +1194,9 @@ WRONG (will be REJECTED):
                 save_state(instance_id, state)
                 print(f"[VERA] Tentativa {attempt} falhou. {'Próxima...' if attempt <= MAX_RETRIES else 'Esgotadas.'}")
 
-        # LIARA v4.7: Se todas as tentativas falharam no arquivo atual,
-        # tenta um arquivo alternativo da lista de candidatos antes de desistir.
+        # LIARA v4.8 Fix6: Se todas as tentativas falharam no arquivo atual,
+        # e nenhum patch foi sequer aplicado, pede para o Sully re-localizar conscientemente
+        # antes de recorrer ao fallback cego da lista de candidatos.
         if file_attempt < MAX_FILE_ATTEMPTS - 1:
             next_candidates = [
                 c for c in production_candidates
@@ -1136,9 +1205,38 @@ WRONG (will be REJECTED):
             if next_candidates:
                 rollback_file(repo_path, target_abs)  # segurança (garante repo limpo)
                 prev_target = target_rel
-                target_rel = next_candidates[0]
+
+                chosen_rel = None
+                chosen_fn = None
+                if not patch_ever_applied:
+                    retry_context = sully_context + (
+                        f"\n\nPREVIOUS ATTEMPT FAILED: We tried file '{prev_target}' "
+                        f"with function '{function_name}' and could NOT apply any patch "
+                        f"(the code context did not match the file). Please pick a "
+                        f"DIFFERENT file from the candidate list below. Do NOT choose '{prev_target}' again.\n\n"
+                        f"Remaining candidates:\n" + "\n".join(next_candidates)
+                    )
+                    try:
+                        raw_retry = prompt_agent(sully_prompt, retry_context)
+                        retry_data = extract_first_json_object(raw_retry)
+                        if isinstance(retry_data, dict):
+                            cand_file = (retry_data.get("file") or "").strip()
+                            for prefix in ["/app/", "app/", "./", "../"]:
+                                if cand_file.startswith(prefix):
+                                    cand_file = cand_file[len(prefix):]
+                            cand_file = cand_file.lstrip("/")
+                            if cand_file in next_candidates and not is_test_path(cand_file):
+                                chosen_rel = cand_file
+                                chosen_fn = retry_data.get("function")
+                    except Exception as e:
+                        print(f"[BACKTRACK SULLY WARN] Re-localização do Sully falhou ({e}); usando próximo candidato da lista.")
+
+                target_rel = chosen_rel if chosen_rel else next_candidates[0]
                 target_abs = os.path.join(repo_path, target_rel)
                 tried_files.append(target_rel)
+                if chosen_fn:
+                    function_name = chosen_fn
+
                 # Re-inferir function_name e line_hint com AST no novo arquivo alvo
                 new_content = read_file(target_abs)
                 line_hint = _extract_line_hint_for_file(pre_results, target_rel)
@@ -1146,8 +1244,8 @@ WRONG (will be REJECTED):
                     ast_fn = resolve_innermost_function_at_line(new_content, line_hint)
                     if ast_fn:
                         function_name = ast_fn
-                else:
-                    # Se o novo arquivo não aparece no traceback, busca função suspeita que exista nele
+                elif not chosen_fn:
+                    # Se o novo arquivo não aparece no traceback e Sully não deu função válida, busca função suspeita que exista nele
                     try:
                         tree = python_ast.parse(new_content)
                         new_file_fns = {node.name for node in python_ast.walk(tree)
@@ -1159,7 +1257,7 @@ WRONG (will be REJECTED):
                         pass
 
                 print(f"[BACKTRACK] Tentativas em '{prev_target}' esgotadas. Tentando arquivo alternativo: '{target_rel}' (função: '{function_name}')")
-                log_dialogue("BACKTRACK", f"Reorientando para arquivo: {target_rel} (anterior: {prev_target})")
+                log_dialogue("BACKTRACK", f"Reorientando para arquivo: {target_rel} (anterior: {prev_target}, função: {function_name})")
                 continue  # próxima iteração de file_attempt com novo target
 
         break  # encerra o loop de file_attempt (sucesso ou candidatos esgotados)
