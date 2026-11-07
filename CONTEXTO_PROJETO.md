@@ -7,11 +7,12 @@
 ## 1. Identificação do Projeto & Objetivo Acadêmico
 
 - **Natureza do Trabalho:** Trabalho de Conclusão de Curso (TCC) / Artigo Acadêmico formato IEEE Transactions on Software Engineering (TSE).
-- **Instituição:** ITA (Instituto Tecnológico de Aeronáutica).
+- **Instituição:** UFSC (Universidade Federal de Santa Catarina).
 - **Equipe / Autores:** Ítalo Silva, Carol Yamaguchi.
 - **Orientação:** Prof. Alison Panisson.
 - **Nome do Framework:** **LIARA** (*Lean Isolated Agents for Repair Automation*).
-- **Tese Central:** É viável e altamente custo-efetivo descentralizar a correção automática de programas (Automated Program Repair - APR) através de um Sistema Multiagente (MAS) composto exclusivamente por Modelos de Linguagem Compactos (SLMs, ex: `Qwen2.5-Coder:14b` ou `Llama-3.1:8B`), executados localmente em hardware de consumo (zero custo de API, privacidade total, sem fine-tuning prévio), alcançando resultados competitivos no benchmark **SWE-bench Verified**.
+- **Tese Central:** É viável e altamente custo-efetivo descentralizar a correção automática de programas (Automated Program Repair - APR) através de um Sistema Multiagente (MAS) composto exclusivamente por Modelos de Linguagem Compactos (SLMs, ex: `Qwen3.5:9b`), executados localmente em hardware de consumo (zero custo de API, privacidade total, sem fine-tuning prévio), alcançando resultados competitivos no benchmark **SWE-bench Verified**.
+- **Nota:** Esse projeto é rodado no computador no laboratório da universidade e não no meu pessoal que eu uso a IA, então alguns dados que são baixados para rodar o projeto não estão aqui nessa máquina `carol-lanzu@janaina`.
 
 ---
 
@@ -50,7 +51,7 @@ O pipeline do LIARA é executado de forma orquestrada e dividida em fases estrit
 
 ## 3. Estado Atual do Repositório & Diagnóstico Técnico
 
-- **Último Commit:** `7b30c67 (teste de 300 falhou)`.
+- **Último Commit:** `5749cb5 - fix: sprint destravamento 4`.
 - **Status do Código:** Arquivo principal localizado em `openclaw_swe_benchmark/local_execution/main_orchestrator.py`.
 
 ### Gargalos Críticos Identificados nos Testes:
@@ -85,7 +86,7 @@ Quando retomar, execute as tarefas na seguinte sequência:
 - **Ação:** Executar o benchmark local com o comando:
   ```bash
   cd openclaw_swe_benchmark/local_execution
-  LIARA_MODEL=qwen2.5-coder:14b LIARA_RETRIES=3 LIARA_SAMPLE=data/swebench_sample_50.json python3 main_orchestrator.py
+  LIARA_MODEL=qwen3.5:9b LIARA_RETRIES=3 LIARA_SAMPLE=data/swebench_sample_50.json python3 main_orchestrator.py
   ```
 - Enquanto o benchmark roda em segundo plano, editar as seções de Introdução, Related Work e Arquitetura no LaTeX.
 
@@ -124,3 +125,6 @@ Quando retomar, execute as tarefas na seguinte sequência:
   ```bash
   git log -n 5 --oneline
   ```
+## 7. Nota importante
+  
+  Eu não rodo o projeto nesse computador que rodo o antigravity e faço meus estudos, eu rodo esse projeto no computador do laboratório da minha faculdade. Então só foque nos arquivos aqui presentes desse repositório e não informações salvas em outro lugar.
